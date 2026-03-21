@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const Customer = require('../models/Customer');
 const Employer = require('../models/Employer');
-
 const {
   parseIncomingMessage,
   parseStatusUpdate,
@@ -25,6 +24,57 @@ const verifyWebhook = (req, res) => {
   });
 };
 
+const generateCustomerPassword = () => {
+  return `${Math.random().toString(36).slice(-8)}Aa1!`;
+};
+
+const getEmployerByPhoneNumberId = async (phoneNumberId) => {
+  let employer = null;
+
+  if (phoneNumberId) {
+    employer = await Employer.findOne({
+      phoneNumberId,
+      isActive: true,
+    });
+  }
+
+  if (!employer) {
+    employer = await Employer.findOne({ isActive: true }).sort({ createdAt: 1 });
+  }
+
+  return employer;
+};
+
+const findOrCreateCustomerFromWhatsApp = async (parsed) => {
+  let customer = await Customer.findOne({
+    $or: [
+      { phone: `+${parsed.from}` },
+      { 'channel_ids.whatsapp': parsed.from },
+    ],
+    isActive: true,
+  });
+
+  if (customer) return customer;
+
+  const safeEmail = `wa_${parsed.from}_${Date.now()}@local.placeholder`;
+
+  customer = await Customer.create({
+    name: parsed.contactName || `WA_${parsed.from}`,
+    email: safeEmail,
+    password: generateCustomerPassword(),
+    phone: `+${parsed.from}`,
+    channel_ids: {
+      whatsapp: parsed.from,
+    },
+  });
+
+  return customer;
+};
+
+// GET /api/webhook/whatsapp
+// Meta verification
+// POST /api/webhook/whatsapp
+// Incoming messages + statuses
 const receiveMessage = async (req, res) => {
   res.status(200).send('EVENT_RECEIVED');
 
@@ -35,7 +85,7 @@ const receiveMessage = async (req, res) => {
     console.log(JSON.stringify(body, null, 2));
 
     if (body.object !== 'whatsapp_business_account') {
-      console.log('Not a WhatsApp webhook event');
+      console.log('Ignored: not a WhatsApp webhook event');
       return;
     }
 
@@ -47,9 +97,7 @@ const receiveMessage = async (req, res) => {
         { new: true }
       );
 
-      console.log(
-        `Status updated: ${statusUpdate.messageId} -> ${statusUpdate.status}`
-      );
+      console.log(`Status updated: ${statusUpdate.messageId} -> ${statusUpdate.status}`);
       return;
     }
 
@@ -65,38 +113,19 @@ const receiveMessage = async (req, res) => {
     console.log('Phone Number ID:', parsed.phoneNumberId);
     console.log('Message:', parsed.body);
 
-    let employer = await Employer.findOne({
-      phoneNumberId: parsed.phoneNumberId,
-      isActive: true,
-    });
-
-    if (!employer) {
-      employer = await Employer.findOne({ isActive: true });
+    const existing = await Message.findOne({ messageId: parsed.messageId });
+    if (existing) {
+      console.log('Duplicate inbound message ignored');
+      return;
     }
 
+    const employer = await getEmployerByPhoneNumberId(parsed.phoneNumberId);
     if (!employer) {
       console.log('No active employer found');
       return;
     }
 
-    let customer = await Customer.findOne({
-      $or: [{ phone: `+${parsed.from}` }, { 'channel_ids.whatsapp': parsed.from }],
-    });
-
-    if (!customer) {
-      customer = await Customer.create({
-        name: parsed.contactName || `WA_${parsed.from}`,
-        email: `wa_${parsed.from}@placeholder.com`,
-        password: 'temp123456',
-        phone: `+${parsed.from}`,
-        channel_ids: {
-          whatsapp: parsed.from,
-        },
-        isActive: true,
-      });
-
-      console.log('Customer auto-created:', customer.name);
-    }
+    const customer = await findOrCreateCustomerFromWhatsApp(parsed);
 
     const savedMessage = await Message.create({
       employerId: employer._id,
@@ -113,18 +142,36 @@ const receiveMessage = async (req, res) => {
       rawPayload: parsed.rawPayload,
     });
 
-    console.log('Message saved to MongoDB:', savedMessage._id);
+    console.log('Message saved to MongoDB:', savedMessage._id.toString());
   } catch (err) {
-    console.error('Webhook processing error:', err.message);
+    console.error('Webhook processing error:', err);
   }
 };
 
+// POST /api/webhook/messages/send
 const sendMessage = async (req, res) => {
   try {
     const { employerId, customerId, message } = req.body;
 
-    const employer = await Employer.findById(employerId);
-    const customer = await Customer.findById(customerId);
+    if (!employerId || !customerId || !message?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'employerId, customerId and message are required',
+      });
+    }
+
+    if (
+      !mongoose.Types.ObjectId.isValid(employerId) ||
+      !mongoose.Types.ObjectId.isValid(customerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid employerId or customerId',
+      });
+    }
+
+    const employer = await Employer.findOne({ _id: employerId, isActive: true });
+    const customer = await Customer.findOne({ _id: customerId, isActive: true });
 
     if (!employer || !customer) {
       return res.status(404).json({
@@ -143,19 +190,24 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    const phoneNumberId =
-      employer.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const phoneNumberId = employer.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!phoneNumberId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No WhatsApp phone number id configured',
+      });
+    }
 
-    const result = await sendTextMessage(customerPhone, message, phoneNumberId);
+    const result = await sendTextMessage(customerPhone, message.trim(), phoneNumberId);
 
-    await Message.create({
+    const savedMessage = await Message.create({
       employerId: employer._id,
       customerId: customer._id,
       from: phoneNumberId,
       to: customerPhone,
-      messageId: result.messages?.[0]?.id || '',
+      messageId: result.messages?.[0]?.id || `out_${Date.now()}`,
       type: 'text',
-      body: message,
+      body: message.trim(),
       direction: 'outbound',
       status: 'sent',
       whatsappTimestamp: new Date(),
@@ -164,51 +216,32 @@ const sendMessage = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Message sent',
-      data: result,
+      message: 'Message sent successfully',
+      data: savedMessage,
     });
   } catch (err) {
     console.error('Send message error:', err.response?.data || err.message);
     return res.status(500).json({
       success: false,
-      message: err.response?.data || err.message,
+      message: 'Failed to send WhatsApp message',
+      error: err.response?.data || err.message,
     });
   }
 };
 
-const getConversation = async (req, res) => {
-  try {
-    const messages = await Message.find({
-      customerId: req.params.customerId,
-    })
-      .sort({ whatsappTimestamp: 1 })
-      .select('-rawPayload -__v');
-
-    return res.status(200).json({
-      success: true,
-      count: messages.length,
-      data: messages,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-};
-
-const getAllConversations = async (req, res) => {
+// GET /api/webhook/chats?employerId=...
+const getAllChats = async (req, res) => {
   try {
     const { employerId } = req.query;
 
-    if (!employerId) {
+    if (!employerId || !mongoose.Types.ObjectId.isValid(employerId)) {
       return res.status(400).json({
         success: false,
-        message: 'employerId query param required',
+        message: 'Valid employerId query param required',
       });
     }
 
-    const conversations = await Message.aggregate([
+    const chats = await Message.aggregate([
       {
         $match: {
           employerId: new mongoose.Types.ObjectId(employerId),
@@ -221,12 +254,50 @@ const getAllConversations = async (req, res) => {
           lastMessage: { $first: '$body' },
           lastMessageTime: { $first: '$whatsappTimestamp' },
           lastDirection: { $first: '$direction' },
-          from: { $first: '$from' },
+          lastStatus: { $first: '$status' },
           unreadCount: {
             $sum: {
-              $cond: [{ $eq: ['$status', 'received'] }, 1, 0],
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$direction', 'inbound'] },
+                    { $eq: ['$status', 'received'] },
+                  ],
+                },
+                1,
+                0,
+              ],
             },
           },
+        },
+      },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customer',
+        },
+      },
+      {
+        $unwind: {
+          path: '$customer',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          customerId: '$customer._id',
+          customerName: '$customer.name',
+          customerEmail: '$customer.email',
+          customerPhone: '$customer.phone',
+          whatsappId: '$customer.channel_ids.whatsapp',
+          lastMessage: 1,
+          lastMessageTime: 1,
+          lastDirection: 1,
+          lastStatus: 1,
+          unreadCount: 1,
         },
       },
       { $sort: { lastMessageTime: -1 } },
@@ -234,13 +305,53 @@ const getAllConversations = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      count: conversations.length,
-      data: conversations,
+      count: chats.length,
+      data: chats,
     });
   } catch (err) {
+    console.error('Get chats error:', err.message);
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: 'Server error',
+    });
+  }
+};
+
+// GET /api/webhook/chats/:customerId?employerId=...
+const getChatHistory = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { employerId } = req.query;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(customerId) ||
+      !mongoose.Types.ObjectId.isValid(employerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid customerId and employerId are required',
+      });
+    }
+
+    const messages = await Message.find({
+      customerId,
+      employerId,
+    })
+      .sort({ whatsappTimestamp: 1 })
+      .populate('customerId', 'name email phone channel_ids')
+      .populate('employerId', 'name email company phoneNumberId')
+      .select('-rawPayload -__v');
+
+    return res.status(200).json({
+      success: true,
+      count: messages.length,
+      data: messages,
+    });
+  } catch (err) {
+    console.error('Get chat history error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
     });
   }
 };
@@ -249,6 +360,6 @@ module.exports = {
   verifyWebhook,
   receiveMessage,
   sendMessage,
-  getConversation,
-  getAllConversations,
+  getAllChats,
+  getChatHistory,
 };

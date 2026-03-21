@@ -1,13 +1,9 @@
 const { google } = require('googleapis');
 
-/**
- * Build an authenticated Gmail client using stored OAuth2 tokens
- */
 const getGmailClient = () => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET,
-    'urn:ietf:wg:oauth:2.0:oob'
+    process.env.GMAIL_CLIENT_SECRET
   );
 
   oauth2Client.setCredentials({
@@ -17,24 +13,116 @@ const getGmailClient = () => {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 };
 
-/**
- * Fetch unread emails from inbox
- * Returns array of parsed email objects
- */
-const fetchUnreadEmails = async () => {
+const decodeBase64Url = (str = '') => {
+  return Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+};
+
+const extractPlainTextFromPayload = (payload) => {
+  if (!payload) return '';
+
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+
+  if (payload.parts?.length) {
+    for (const part of payload.parts) {
+      const text = extractPlainTextFromPayload(part);
+      if (text) return text;
+    }
+  }
+
+  if (payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+
+  return '';
+};
+
+const cleanEmailBody = (body = '') => {
+  if (!body) return '';
+
+  let cleaned = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Remove quoted previous replies
+  const replySeparators = [
+    /^On .*wrote:$/gim,
+    /^From: .*$/gim,
+    /^Sent: .*$/gim,
+    /^To: .*$/gim,
+    /^Subject: .*$/gim,
+    /^---+Original Message---+$/gim,
+    /^_{5,}$/gim,
+  ];
+
+  for (const separator of replySeparators) {
+    const match = cleaned.match(separator);
+    if (match && match.length) {
+      const idx = cleaned.search(separator);
+      if (idx > -1) {
+        cleaned = cleaned.slice(0, idx);
+      }
+    }
+  }
+
+  // Remove common signature starters
+  const signatureSeparators = [
+    /\n--\s*\n/g,
+    /\nRegards[,\s]*\n/gi,
+    /\nBest Regards[,\s]*\n/gi,
+    /\nThanks[,\s]*\n/gi,
+    /\nThank you[,\s]*\n/gi,
+    /\nWarm regards[,\s]*\n/gi,
+  ];
+
+  for (const separator of signatureSeparators) {
+    const match = cleaned.search(separator);
+    if (match > -1) {
+      cleaned = cleaned.slice(0, match);
+    }
+  }
+
+  // Remove disclaimer blocks
+  const disclaimerPatterns = [
+    /this email and any attachments are confidential[\s\S]*/i,
+    /the information contained in this e-mail may be confidential[\s\S]*/i,
+    /this message contains confidential information[\s\S]*/i,
+    /please consider the environment before printing this email[\s\S]*/i,
+    /disclaimer[:\s][\s\S]*/i,
+  ];
+
+  for (const pattern of disclaimerPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // Remove excessive blank lines
+  cleaned = cleaned
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return cleaned;
+};
+
+const parseEmailAddress = (fromHeader = '') => {
+  const match = fromHeader.match(/<(.+?)>/);
+  if (match?.[1]) return match[1].trim();
+  return fromHeader.trim();
+};
+
+const fetchUnreadEmails = async (afterTimestamp) => {
   const gmail = getGmailClient();
 
-  // List unread messages
   const listRes = await gmail.users.messages.list({
     userId: 'me',
-    q: `is:unread in:inbox after:${Math.floor((Date.now() - 2 * 60 * 1000) / 1000)}`,
+    q: `is:unread in:inbox after:${afterTimestamp}`,
     maxResults: 20,
   });
 
   const messages = listRes.data.messages || [];
-  if (messages.length === 0) return [];
+  if (!messages.length) return [];
 
-  // Fetch full details for each message
   const emails = await Promise.all(
     messages.map(async (msg) => {
       const detail = await gmail.users.messages.get({
@@ -43,32 +131,24 @@ const fetchUnreadEmails = async () => {
         format: 'full',
       });
 
-      const headers = detail.data.payload.headers;
+      const headers = detail.data.payload?.headers || [];
       const getHeader = (name) =>
         headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
-      // Extract body text
-      let body = '';
-      const parts = detail.data.payload.parts || [];
-      if (parts.length > 0) {
-        const textPart = parts.find((p) => p.mimeType === 'text/plain');
-        if (textPart?.body?.data) {
-          body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-        }
-      } else if (detail.data.payload.body?.data) {
-        body = Buffer.from(detail.data.payload.body.data, 'base64').toString('utf-8');
-      }
+      const rawBody = extractPlainTextFromPayload(detail.data.payload);
+      const cleanBody = cleanEmailBody(rawBody);
 
       return {
-        gmailId:   msg.id,
-        threadId:  detail.data.threadId,
-        from:      getHeader('From'),       // "John Smith <john@gmail.com>"
-        fromEmail: getHeader('From').match(/<(.+)>/)?.[1] || getHeader('From'),
-        to:        getHeader('To'),
-        subject:   getHeader('Subject'),
-        body:      body.trim(),
-        date:      new Date(parseInt(detail.data.internalDate)),
-        rawSnippet: detail.data.snippet,
+        gmailId: msg.id,
+        threadId: detail.data.threadId,
+        from: getHeader('From'),
+        fromEmail: parseEmailAddress(getHeader('From')),
+        to: getHeader('To'),
+        subject: getHeader('Subject'),
+        rawBody: rawBody.trim(),
+        body: cleanBody,
+        date: new Date(parseInt(detail.data.internalDate, 10)),
+        rawSnippet: detail.data.snippet || '',
       };
     })
   );
@@ -76,37 +156,28 @@ const fetchUnreadEmails = async () => {
   return emails;
 };
 
-/**
- * Mark a Gmail message as read (so we don't process it again)
- */
 const markAsRead = async (gmailId) => {
   const gmail = getGmailClient();
+
   await gmail.users.messages.modify({
     userId: 'me',
     id: gmailId,
-    requestBody: { removeLabelIds: ['UNREAD'] },
+    requestBody: {
+      removeLabelIds: ['UNREAD'],
+    },
   });
 };
 
-/**
- * Send a reply email
- * @param {string} to         - recipient email
- * @param {string} subject    - email subject (usually "Re: original subject")
- * @param {string} body       - reply body text
- * @param {string} threadId   - Gmail thread ID to keep it in same thread
- */
 const sendReply = async (to, subject, body, threadId) => {
   const gmail = getGmailClient();
+  const fromEmail = process.env.GMAIL_ADDRESS;
 
-  const fromEmail = process.env.GMAIL_ADDRESS; // employer's gmail
-
-  // Build raw RFC 2822 email
   const raw = [
     `From: ${fromEmail}`,
     `To: ${to}`,
-    `Subject: ${subject.startsWith('Re:') ? subject : 'Re: ' + subject}`,
+    `Subject: ${subject.startsWith('Re:') ? subject : `Re: ${subject}`}`,
     `Content-Type: text/plain; charset=utf-8`,
-    ``,
+    '',
     body,
   ].join('\n');
 
@@ -120,11 +191,16 @@ const sendReply = async (to, subject, body, threadId) => {
     userId: 'me',
     requestBody: {
       raw: encodedMessage,
-      threadId,  // keeps reply in same thread
+      threadId,
     },
   });
 
   return result.data;
 };
 
-module.exports = { fetchUnreadEmails, markAsRead, sendReply };
+module.exports = {
+  fetchUnreadEmails,
+  markAsRead,
+  sendReply,
+  cleanEmailBody,
+};

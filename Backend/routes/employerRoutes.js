@@ -6,15 +6,14 @@ const {
   getEmployerById,
   updateEmployer,
   deleteEmployer,
+  loginEmployer,
 } = require('../controllers/employerController');
 
-// POST   /api/employers        — create employer
-// GET    /api/employers        — get all employers
-router.route('/').post(createEmployer).get(getAllEmployers);
+// Public routes
+router.post('/login', loginEmployer);
 
-// GET    /api/employers/:id    — get single employer
-// PUT    /api/employers/:id    — update employer
-// DELETE /api/employers/:id    — soft delete employer
+// CRUD routes
+router.route('/').post(createEmployer).get(getAllEmployers);
 router.route('/:id').get(getEmployerById).put(updateEmployer).delete(deleteEmployer);
 
 module.exports = router;

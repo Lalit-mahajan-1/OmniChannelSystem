@@ -34,13 +34,20 @@ const parseIncomingMessage = (body) => {
     const contact = value.contacts?.[0];
 
     let messageBody = '';
-
     if (msg.type === 'text') {
       messageBody = msg.text?.body || '';
     } else if (msg.type === 'button') {
       messageBody = msg.button?.text || '';
     } else if (msg.type === 'interactive') {
       messageBody = JSON.stringify(msg.interactive || {});
+    } else if (msg.type === 'image') {
+      messageBody = '[image received]';
+    } else if (msg.type === 'document') {
+      messageBody = '[document received]';
+    } else if (msg.type === 'audio') {
+      messageBody = '[audio received]';
+    } else if (msg.type === 'video') {
+      messageBody = '[video received]';
     } else {
       messageBody = `[${msg.type} message received]`;
     }
@@ -52,6 +59,12 @@ const parseIncomingMessage = (body) => {
       phoneNumberId: value.metadata?.phone_number_id || '',
       type: msg.type,
       body: messageBody,
+      mediaId:
+        msg.image?.id ||
+        msg.document?.id ||
+        msg.audio?.id ||
+        msg.video?.id ||
+        '',
       whatsappTimestamp: msg.timestamp
         ? new Date(parseInt(msg.timestamp, 10) * 1000)
         : new Date(),
@@ -64,7 +77,25 @@ const parseIncomingMessage = (body) => {
   }
 };
 
+const parseStatusUpdate = (body) => {
+  try {
+    const value = body.entry?.[0]?.changes?.[0]?.value;
+    if (!value?.statuses?.length) return null;
+
+    const status = value.statuses[0];
+
+    return {
+      messageId: status.id,
+      status: status.status,
+    };
+  } catch (err) {
+    console.error('parseStatusUpdate error:', err.message);
+    return null;
+  }
+};
+
 module.exports = {
   sendTextMessage,
   parseIncomingMessage,
+  parseStatusUpdate,
 };

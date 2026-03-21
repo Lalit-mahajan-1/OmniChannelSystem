@@ -5,16 +5,19 @@ const {
   verifyWebhook,
   receiveMessage,
   sendMessage,
-  getConversation,
-  getAllConversations,
+  getAllChats,
+  getChatHistory,
 } = require('../controllers/webhookController');
 
+// Meta webhook
 router.get('/whatsapp', verifyWebhook);
 router.post('/whatsapp', receiveMessage);
 
-router.post('/send', sendMessage);
+// employer -> customer
+router.post('/messages/send', sendMessage);
 
-router.get('/conversations/:customerId', getConversation);
-router.get('/conversations', getAllConversations);
+// chat history
+router.get('/chats', getAllChats);
+router.get('/chats/:customerId', getChatHistory);
 
 module.exports = router;
