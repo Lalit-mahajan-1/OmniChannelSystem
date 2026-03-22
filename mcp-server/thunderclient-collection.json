@@ -1,0 +1,240 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "OmniChannel MCP Tests",
+  "dateExported": "2026-03-22",
+  "version": "1.2",
+  "folders": [
+    {
+      "id": "f1",
+      "name": "Health"
+    },
+    {
+      "id": "f2",
+      "name": "Intelligence (Brain)"
+    },
+    {
+      "id": "f3",
+      "name": "WhatsApp MCP"
+    },
+    {
+      "id": "f4",
+      "name": "LinkedIn MCP"
+    },
+    {
+      "id": "f5",
+      "name": "Twitter MCP"
+    }
+  ],
+  "requests": [
+    {
+      "id": "r1",
+      "colId": "col1",
+      "folderId": "f1",
+      "name": "Health Check",
+      "method": "GET",
+      "url": "http://localhost:6000/health",
+      "headers": [],
+      "body": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "r2",
+      "colId": "col1",
+      "folderId": "f2",
+      "name": "Get Customer Intelligence — dummy number",
+      "method": "POST",
+      "url": "http://localhost:6000/intelligence",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"customerIdentifier\": \"917796449253\"\n}"
+      }
+    },
+    {
+      "id": "r3",
+      "colId": "col1",
+      "folderId": "f2",
+      "name": "Get Customer Intelligence — real number",
+      "method": "POST",
+      "url": "http://localhost:6000/intelligence",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"customerIdentifier\": \"PUT_REAL_NUMBER_FROM_DB_HERE\"\n}"
+      }
+    },
+    {
+      "id": "r4",
+      "colId": "col1",
+      "folderId": "f3",
+      "name": "WhatsApp — Get Messages",
+      "method": "POST",
+      "url": "http://localhost:6000/whatsapp/messages",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"phone\": \"917796449253\",\n  \"limit\": 10\n}"
+      }
+    },
+    {
+      "id": "r5",
+      "colId": "col1",
+      "folderId": "f3",
+      "name": "WhatsApp — Send Message",
+      "method": "POST",
+      "url": "http://localhost:6000/whatsapp/send",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"phone\": \"917796449253\",\n  \"message\": \"Hello from OmniChannel MCP — test message\",\n  \"customerId\": \"test_customer_001\"\n}"
+      }
+    },
+    {
+      "id": "r6",
+      "colId": "col1",
+      "folderId": "f3",
+      "name": "WhatsApp — Broadcast",
+      "method": "POST",
+      "url": "http://localhost:6000/whatsapp/broadcast",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"customerIds\": [\"PASTE_REAL_MONGO_ID_HERE\"],\n  \"message\": \"Dear customer, your request has been resolved. Thank you for your patience.\",\n  \"campaignName\": \"resolution_broadcast_march_2026\"\n}"
+      }
+    },
+    {
+      "id": "r7",
+      "colId": "col1",
+      "folderId": "f3",
+      "name": "WhatsApp — Transcribe Voice Note",
+      "method": "POST",
+      "url": "http://localhost:6000/whatsapp/transcribe",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"mediaId\": \"PASTE_MEDIA_ID_FROM_WEBHOOK_HERE\",\n  \"customerId\": \"test_customer_001\"\n}"
+      }
+    },
+    {
+      "id": "r8",
+      "colId": "col1",
+      "folderId": "f4",
+      "name": "LinkedIn — Brand Comments (HDFC Bank)",
+      "method": "POST",
+      "url": "http://localhost:6000/linkedin/comments",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"brandName\": \"HDFC Bank\",\n  \"keyword\": \"complaint\",\n  \"limit\": 10\n}"
+      }
+    },
+    {
+      "id": "r9",
+      "colId": "col1",
+      "folderId": "f4",
+      "name": "LinkedIn — Brand Comments (refund)",
+      "method": "POST",
+      "url": "http://localhost:6000/linkedin/comments",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"brandName\": \"HDFC Bank\",\n  \"keyword\": \"refund failed\",\n  \"limit\": 5\n}"
+      }
+    },
+    {
+      "id": "r10",
+      "colId": "col1",
+      "folderId": "f5",
+      "name": "Twitter — Search Complaints (HDFC Bank)",
+      "method": "POST",
+      "url": "http://localhost:6000/twitter/complaints",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"keyword\": \"complaint\",\n  \"brandName\": \"HDFC Bank\",\n  \"limit\": 15\n}"
+      }
+    },
+    {
+      "id": "r11",
+      "colId": "col1",
+      "folderId": "f5",
+      "name": "Twitter — Search Complaints (fraud scam)",
+      "method": "POST",
+      "url": "http://localhost:6000/twitter/complaints",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"keyword\": \"fraud scam worst\",\n  \"brandName\": \"HDFC Bank\",\n  \"limit\": 10\n}"
+      }
+    },
+    {
+      "id": "r12",
+      "colId": "col1",
+      "folderId": "f5",
+      "name": "Twitter — Search Complaints (Samsung)",
+      "method": "POST",
+      "url": "http://localhost:6000/twitter/complaints",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"keyword\": \"not working broken\",\n  \"brandName\": \"Samsung\",\n  \"limit\": 10\n}"
+      }
+    }
+  ]
+}

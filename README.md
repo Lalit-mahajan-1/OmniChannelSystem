@@ -137,7 +137,7 @@ Gmail poller starts automatically every 30 seconds.
 
 **Find by channel example:**
 ```
-GET /api/customers/channel/whatsapp/919876543210
+GET /api/customers/channel/whatsapp/917796449253
 GET /api/customers/channel/email/john@gmail.com
 ```
 
