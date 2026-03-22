@@ -9,7 +9,9 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const BASE = import.meta.env.VITE_API_URL;
-const AGENT_BASE = import.meta.env.VITE_AGENT_URL + "/agent";
+const AGENT_BASE    = import.meta.env.VITE_AGENT_URL + "/agent";
+const WA_AGENT_BASE = import.meta.env.VITE_WA_AGENT_URL + "/wa-agent";
+const OMNI_BASE     = import.meta.env.VITE_OMNI_AGENT_URL + "/omni-agent";
 
 interface InboxItem {
   customerId: string;
@@ -109,6 +111,19 @@ export default function InboxPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [sendingAgent, setSendingAgent] = useState(false);
   const [autoReplyingAll, setAutoReplyingAll] = useState(false);
+
+  // WA AGENT PANEL STATE
+  const [waAgentOpen, setWaAgentOpen] = useState(false);
+  const [waAgentLoading, setWaAgentLoading] = useState(false);
+  const [waAgentSuggestion, setWaAgentSuggestion] = useState("");
+  const [waAgentRegenerating, setWaAgentRegenerating] = useState(false);
+  const [waAgentSending, setWaAgentSending] = useState(false);
+
+  // OMNI AGENT MODAL STATE
+  const [omniModalOpen, setOmniModalOpen] = useState(false);
+  const [omniLoading, setOmniLoading] = useState(false);
+  const [omniReport, setOmniReport] = useState<any>(null);
+  const [omniDrafting, setOmniDrafting] = useState(false);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -431,6 +446,133 @@ export default function InboxPage() {
     }
   };
 
+  const handleOpenWaAgent = async () => {
+    setWaAgentOpen(true);
+    setWaAgentLoading(true);
+    try {
+      const res = await axios.get(`${WA_AGENT_BASE}/chats`);
+      const chat = res.data?.data?.find((c: any) => c.customerId === selectedCustomerId);
+      if (chat && chat.suggestedReply) {
+        setWaAgentSuggestion(chat.suggestedReply);
+      } else {
+        const suggestRes = await axios.post(`${WA_AGENT_BASE}/chats/suggest`, { customerId: selectedCustomerId });
+        setWaAgentSuggestion(suggestRes.data.suggestion);
+      }
+    } catch (err: any) {
+      toast.error("Failed to load WA Agent context");
+      setWaAgentOpen(false);
+    } finally {
+      setWaAgentLoading(false);
+    }
+  };
+
+  const handleWaAgentRegenerate = async () => {
+    setWaAgentRegenerating(true);
+    try {
+      const res = await axios.post(`${WA_AGENT_BASE}/chats/suggest`, { customerId: selectedCustomerId });
+      setWaAgentSuggestion(res.data.suggestion);
+    } catch (err) {
+      toast.error("Failed to regenerate");
+    } finally {
+      setWaAgentRegenerating(false);
+    }
+  };
+
+  const handleWaAgentSend = async () => {
+    if (!waAgentSuggestion?.trim()) return;
+    setWaAgentSending(true);
+    try {
+      await axios.post(`${WA_AGENT_BASE}/chats/${selectedCustomerId}/send-reply`, { message: waAgentSuggestion });
+      toast.success("WhatsApp reply sent!");
+      setWaAgentOpen(false);
+      fetchOmniTimeline();
+    } catch (err) {
+      toast.error("Failed to send WhatsApp reply");
+    } finally {
+      setWaAgentSending(false);
+    }
+  };
+
+  const handleWaAgentAutoReplyAll = async () => {
+    if (!window.confirm("AI will reply to all unread WhatsApp chats. Continue?")) return;
+    try {
+      await axios.post(`${WA_AGENT_BASE}/chats/auto-reply-all`);
+      toast.success("Auto-replied to all WhatsApp chats!");
+      setWaAgentOpen(false);
+      fetchOmniTimeline();
+    } catch (err) {
+      toast.error("Failed to auto-reply all WhatsApp chats");
+    }
+  };
+
+  const handleOpenOmniIntelligence = async () => {
+    setOmniModalOpen(true);
+    setOmniLoading(true);
+    try {
+      const res = await axios.post(`${OMNI_BASE}/summary/${selectedCustomerId}`);
+      setOmniReport(res.data.data || res.data);
+    } catch (err) {
+      toast.error("Failed to load Omni Intelligence Report");
+      setOmniModalOpen(false);
+    } finally {
+      setOmniLoading(false);
+    }
+  };
+
+  const handleOmniDraftWa = async () => {
+    setOmniDrafting(true);
+    try {
+      const res = await axios.post(`${OMNI_BASE}/suggest`, { customerId: selectedCustomerId, channel: "whatsapp" });
+      setOmniModalOpen(false);
+      setMessageText(res.data.suggestion);
+      setFilter('whatsapp');
+      toast.success("Omni AI draft ready!");
+    } catch (err) {
+      toast.error("Failed to draft via Omni AI");
+    } finally {
+      setOmniDrafting(false);
+    }
+  };
+
+  const handleOmniDraftEmail = async () => {
+    setOmniDrafting(true);
+    try {
+      const res = await axios.post(`${OMNI_BASE}/suggest`, { customerId: selectedCustomerId, channel: "email" });
+      setOmniModalOpen(false);
+      setEmailAgentSuggestion(res.data.suggestion);
+      setEmailAgentOpen(true);
+      toast.success("Omni AI draft ready!");
+    } catch (err) {
+      toast.error("Failed to draft via Omni AI");
+    } finally {
+      setOmniDrafting(false);
+    }
+  };
+
+  const handleAutodraftOption = async (option: 'email' | 'wa' | 'omni') => {
+    if (timeline.length === 0) return;
+    setOmniGenerating(true);
+    try {
+      if (option === 'email') {
+        const historyStr = timeline.slice(-12).map(m => `[${m.type.toUpperCase()}] ${m.direction === 'inbound' ? 'Customer' : 'Bank Support'}: ${m.body}`).join('\n');
+        const res = await axios.post(`${AGENT_BASE}/generate-omni`, { history: historyStr });
+        if (res.data.suggestion) setMessageText(res.data.suggestion);
+      } else if (option === 'wa') {
+        const res = await axios.post(`${WA_AGENT_BASE}/chats/suggest`, { customerId: selectedCustomerId });
+        if (res.data.suggestion) setMessageText(res.data.suggestion);
+      } else if (option === 'omni') {
+        const targetChannel = filter === 'email' ? 'email' : 'whatsapp';
+        const res = await axios.post(`${OMNI_BASE}/suggest`, { customerId: selectedCustomerId, channel: targetChannel });
+        if (res.data.suggestion) setMessageText(res.data.suggestion);
+      }
+      toast.success(`${option.toUpperCase()} AI draft ready for review!`);
+    } catch (err: any) {
+      toast.error(`Failed to generate ${option} response.`);
+    } finally {
+       setOmniGenerating(false);
+    }
+  };
+
 
   // ==========================================
   // 2. AI AGENT LOGIC
@@ -738,10 +880,13 @@ export default function InboxPage() {
                    {customerProfile.email && <span className="p-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-sm" title="Email Active"><Mail className="w-4 h-4" /></span>}
                 </div>
                 {customerProfile.email && (
-                  <button onClick={handleOpenEmailAgent} className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-500/30 text-indigo-400 text-xs font-bold uppercase tracking-wider hover:bg-indigo-500/10 transition-colors">
+                  <button onClick={handleOpenEmailAgent} className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-500/30 text-indigo-400 text-xs font-bold uppercase tracking-wider hover:bg-indigo-500/10 transition-colors mb-2">
                     <Bot className="w-3.5 h-3.5" /> Run Email Agent
                   </button>
                 )}
+                <button onClick={handleOpenOmniIntelligence} className={`${!customerProfile.email ? 'mt-4' : ''} w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_rgba(99,102,241,0.6)] transition-all`}>
+                  <Zap className="w-3.5 h-3.5" /> Omni Intelligence
+                </button>
               </div>
               
               <div className="p-6 space-y-8">
@@ -775,9 +920,14 @@ export default function InboxPage() {
                    <MessageSquare className="w-4 h-4 text-neon-purple" /> Timeline Engine
                  </h2>
                  <div className="flex items-center gap-3">
-                   {customerProfile.email && (filter === 'email' || filter === 'all') && (
+                   {customerProfile.email && filter === 'email' && (
                      <button onClick={handleOpenEmailAgent} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(99,102,241,0.4)] hover:shadow-[0_0_15px_rgba(99,102,241,0.6)] transition-all">
                        <Sparkles className="w-3 h-3" /> Email Agent
+                     </button>
+                   )}
+                   {filter === 'whatsapp' && (
+                     <button onClick={handleOpenWaAgent} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(34,197,94,0.4)] hover:shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all">
+                       <MessageSquare className="w-3 h-3" /> WA Agent
                      </button>
                    )}
                    <div className="flex bg-white/[0.02] rounded-lg p-1 border border-white/[0.06]">
@@ -838,25 +988,6 @@ export default function InboxPage() {
                </div>
 
                <div className="bg-background border-t border-white/[0.06] shrink-0 sticky bottom-0 z-20">
-                 <div className="px-6 py-3 border-b border-white/[0.04] bg-background">
-                   <div className="flex items-center gap-2 mb-2.5">
-                     <Sparkles className="w-4 h-4 text-neon-purple" />
-                     <span className="text-[10px] font-bold uppercase tracking-widest text-neon-purple">Autocompletes</span>
-                   </div>
-                   <div className="flex flex-wrap gap-2">
-                     <button
-                       onClick={handleOmniGenerate}
-                       disabled={omniGenerating || timeline.length === 0}
-                       className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-300 hover:text-white hover:border-indigo-500/50 hover:bg-indigo-500/30 transition-all font-bold shadow-[0_0_10px_rgba(99,102,241,0.1)] disabled:opacity-50"
-                     >
-                       {omniGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5" />}
-                       {omniGenerating ? "Analyzing Context..." : "AI Auto-Draft"}
-                     </button>
-                     {aiSuggestions.map((s, i) => (
-                       <button key={i} onClick={() => setMessageText(s)} className="text-xs px-3 py-1.5 rounded-lg bg-neon-purple/10 border border-neon-purple/20 text-neon-purple hover:bg-neon-purple/20 transition-all font-medium truncate max-w-sm shadow-sm">{s}</button>
-                     ))}
-                   </div>
-                 </div>
                  <div className="px-6 py-4 bg-white/[0.01]">
                    <div className="flex items-center gap-3">
                      <button className="p-2.5 rounded-lg hover:bg-white/[0.06] text-muted-foreground transition-all"><Paperclip className="w-5 h-5" /></button>
@@ -951,6 +1082,165 @@ export default function InboxPage() {
                          </button>
                        </div>
                      </div>
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+
+               {/* === WA AGENT SLIDING PANEL === */}
+               <AnimatePresence>
+                 {waAgentOpen && (
+                   <motion.div
+                     initial={{ y: "100%", opacity: 0 }}
+                     animate={{ y: 0, opacity: 1 }}
+                     exit={{ y: "100%", opacity: 0 }}
+                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                     className="absolute bottom-0 left-0 right-0 z-[60] bg-[#022c22]/95 backdrop-blur-xl border-t-[3px] border-green-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto flex flex-col"
+                   >
+                     {/* Header */}
+                     <div className="flex items-center justify-between p-5 border-b border-green-500/20 shrink-0">
+                       <div className="flex items-center gap-2">
+                         <MessageSquare className="w-5 h-5 text-green-400" />
+                         <span className="font-bold text-sm text-green-100 uppercase tracking-widest">AI WhatsApp Agent</span>
+                       </div>
+                       <button onClick={() => setWaAgentOpen(false)} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-green-200 transition-colors">
+                         <span className="text-xl leading-none">&times;</span>
+                       </button>
+                     </div>
+
+                     <div className="p-5 overflow-y-auto flex-1 scrollbar-thin">
+                       {/* Main Textarea */}
+                       <div className="border-l-4 border-green-500 pl-4 mb-6 relative">
+                         {waAgentLoading ? (
+                           <div className="w-full h-32 bg-green-500/10 animate-pulse rounded-xl border border-green-500/20" />
+                         ) : (
+                           <textarea
+                             value={waAgentSuggestion}
+                             onChange={e => setWaAgentSuggestion(e.target.value)}
+                             className="w-full bg-black/30 border border-green-500/30 rounded-xl p-4 text-sm focus:outline-none focus:border-green-400 text-green-50 min-h-[140px] resize-none leading-relaxed transition-all shadow-inner"
+                           />
+                         )}
+                       </div>
+
+                       {/* Buttons */}
+                       <div className="flex flex-wrap items-center justify-between gap-4">
+                         <div className="flex items-center gap-3">
+                           <button 
+                             onClick={handleWaAgentRegenerate}
+                             disabled={waAgentLoading || waAgentRegenerating}
+                             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-green-500/50 text-green-300 font-bold hover:bg-green-500/20 transition-all text-[11px] uppercase tracking-wider disabled:opacity-50"
+                           >
+                             <RefreshCw className={`w-3.5 h-3.5 ${waAgentRegenerating ? 'animate-spin' : ''}`} />
+                             Regenerate
+                           </button>
+                           <button 
+                             onClick={handleWaAgentSend}
+                             disabled={waAgentLoading || waAgentRegenerating || waAgentSending || !waAgentSuggestion?.trim()}
+                             className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold transition-all text-sm shadow-[0_0_15px_rgba(34,197,94,0.4)] disabled:opacity-50 disabled:grayscale"
+                           >
+                             {waAgentSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                             Send Reply
+                           </button>
+                         </div>
+                         
+                         <button 
+                           onClick={handleWaAgentAutoReplyAll}
+                           disabled={waAgentSending || waAgentLoading || waAgentRegenerating}
+                           className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all text-[11px] shadow-[0_0_15px_rgba(16,185,129,0.4)] uppercase tracking-wider disabled:opacity-50"
+                         >
+                           <Zap className="w-3.5 h-3.5" />
+                           Auto Reply All
+                         </button>
+                       </div>
+                     </div>
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+
+               {/* === OMNI MODAL OVERLAY === */}
+               <AnimatePresence>
+                 {omniModalOpen && (
+                   <motion.div
+                     initial={{ opacity: 0 }}
+                     animate={{ opacity: 1 }}
+                     exit={{ opacity: 0 }}
+                     className="absolute inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+                   >
+                     <motion.div
+                       initial={{ scale: 0.95, opacity: 0 }}
+                       animate={{ scale: 1, opacity: 1 }}
+                       exit={{ scale: 0.95, opacity: 0 }}
+                       className="bg-[#1e1b4b] border border-indigo-500/40 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden flex flex-col"
+                     >
+                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border-b border-indigo-500/20">
+                           <h3 className="flex items-center gap-2 text-indigo-100 font-bold"><Sparkles className="w-4 h-4 text-purple-400"/> Customer Intelligence Report</h3>
+                           <button onClick={() => setOmniModalOpen(false)} className="text-indigo-300 hover:text-white transition-colors" disabled={omniDrafting}><span className="text-xl leading-none">&times;</span></button>
+                        </div>
+                        <div className="p-6">
+                           {omniLoading ? (
+                              <div className="flex flex-col items-center justify-center py-8 gap-3 text-indigo-300">
+                                 <Loader2 className="w-8 h-8 animate-spin" />
+                                 <span className="text-sm font-medium">Generating Report...</span>
+                              </div>
+                           ) : omniReport ? (
+                              <div className="space-y-5">
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
+                                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Sentiment</span>
+                                       <div className={`text-sm font-bold flex items-center gap-1.5 ${
+                                         ['angry', 'negative'].includes(omniReport.sentiment?.toLowerCase()) ? 'text-red-400' :
+                                         ['positive'].includes(omniReport.sentiment?.toLowerCase()) ? 'text-green-400' : 'text-yellow-400'
+                                       }`}>
+                                          <Smile className="w-4 h-4"/> {omniReport.sentiment}
+                                       </div>
+                                    </div>
+                                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
+                                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Urgency</span>
+                                       <div className={`text-sm font-bold flex items-center gap-1.5 ${
+                                         omniReport.urgency?.toLowerCase() === 'high' ? 'text-red-400' :
+                                         omniReport.urgency?.toLowerCase() === 'low' ? 'text-green-400' : 'text-yellow-400'
+                                       }`}>
+                                          <Zap className="w-4 h-4"/> {omniReport.urgency}
+                                       </div>
+                                    </div>
+                                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
+                                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Resolved Status</span>
+                                       <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                                          {omniReport.isResolved ? <CheckCircle className="w-4 h-4 text-green-400"/> : <AlertCircle className="w-4 h-4 text-red-400"/>}
+                                          {omniReport.isResolved ? 'Resolved' : 'Needs Action'}
+                                       </div>
+                                    </div>
+                                    <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
+                                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Channels</span>
+                                       <div className="flex gap-2">
+                                          {(omniReport.channelsUsed || []).map((ch: string) => (
+                                             <span key={ch} className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-white/10 text-white/90">{ch}</span>
+                                          ))}
+                                       </div>
+                                    </div>
+                                 </div>
+                                 <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.05]">
+                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Main Issue</span>
+                                    <p className="text-sm font-medium text-indigo-50/90 leading-relaxed">{omniReport.mainIssue || "Unknown"}</p>
+                                 </div>
+                                 <div className="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/30">
+                                    <span className="text-[10px] uppercase tracking-wider text-indigo-300 font-bold mb-1 block flex items-center gap-1"><Sparkles className="w-3 h-3"/> Recommendation</span>
+                                    <p className="text-sm font-medium text-indigo-100 leading-relaxed">{omniReport.recommendation || "N/A"}</p>
+                                 </div>
+                              </div>
+                           ) : (
+                              <div className="text-center py-6 text-red-400 text-sm">Could not load report.</div>
+                           )}
+                           
+                           <div className="mt-6 flex gap-3">
+                              <button onClick={handleOmniDraftWa} disabled={omniLoading || omniDrafting} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/40 text-green-400 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50">
+                                {omniDrafting ? <Loader2 className="w-4 h-4 animate-spin"/> : <MessageSquare className="w-4 h-4"/>} Draft WA Reply
+                              </button>
+                              <button onClick={handleOmniDraftEmail} disabled={omniLoading || omniDrafting} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-400 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50">
+                                {omniDrafting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>} Draft Email Reply
+                              </button>
+                           </div>
+                        </div>
+                     </motion.div>
                    </motion.div>
                  )}
                </AnimatePresence>

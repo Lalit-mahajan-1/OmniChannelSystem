@@ -1,13 +1,15 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  TrendingUp, TrendingDown, Zap, Clock, MessageSquare,
+  TrendingUp, Zap, Clock, MessageSquare,
   Activity, AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
+  Loader2, AlertCircle, RefreshCw, Mail, Smartphone, Globe, ChevronRight, XCircle
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 /* ─── theme ─── */
 const T = {
@@ -50,49 +52,6 @@ const ChartTooltip = ({ active, payload, label, unit = "" }: any) => {
   );
 };
 
-/* ─── data ─── */
-const responseData = [
-  { day:"Mon", value:2.4 },{ day:"Tue", value:1.8 },{ day:"Wed", value:2.1 },
-  { day:"Thu", value:1.5 },{ day:"Fri", value:1.2 },{ day:"Sat", value:0.9 },{ day:"Sun", value:1.1 },
-];
-const satisfactionData = [
-  { month:"Jan", value:78 },{ month:"Feb", value:82 },{ month:"Mar", value:85 },
-  { month:"Apr", value:88 },{ month:"May", value:91 },{ month:"Jun", value:94 },
-];
-const channelVolumeData = [
-  { day:"Mon", whatsapp:120, email:80, sms:40, call:25 },
-  { day:"Tue", whatsapp:145, email:95, sms:55, call:30 },
-  { day:"Wed", whatsapp:132, email:88, sms:48, call:22 },
-  { day:"Thu", whatsapp:160, email:102, sms:62, call:35 },
-  { day:"Fri", whatsapp:178, email:115, sms:70, call:40 },
-  { day:"Sat", whatsapp:90,  email:55, sms:30, call:15 },
-  { day:"Sun", whatsapp:75,  email:48, sms:22, call:12 },
-];
-const sentimentTrend = [
-  { day:"Mon", positive:62, neutral:26, negative:12 },
-  { day:"Tue", positive:68, neutral:22, negative:10 },
-  { day:"Wed", positive:59, neutral:28, negative:13 },
-  { day:"Thu", positive:71, neutral:20, negative:9  },
-  { day:"Fri", positive:74, neutral:18, negative:8  },
-  { day:"Sat", positive:80, neutral:15, negative:5  },
-  { day:"Sun", positive:77, neutral:17, negative:6  },
-];
-const alerts = [
-  { id:1, type:"spike",   label:"Message volume spike on WhatsApp",     time:"12m ago", severity:"high" },
-  { id:2, type:"drop",    label:"Response time degraded — avg 3.2m",     time:"28m ago", severity:"medium" },
-  { id:3, type:"risk",    label:"3 high-risk customers need follow-up",  time:"1h ago",  severity:"high" },
-  { id:4, type:"success", label:"CSAT hit 94% — highest this quarter",   time:"2h ago",  severity:"positive" },
-];
-const kpis = [
-  { label:"Avg Response",     value:"1.2m",  change:"-28%",  up:true,  icon:Clock,         hint:"Time to first reply across all channels" },
-  { label:"Resolution Rate",  value:"94.7%", change:"+5.2%", up:true,  icon:CheckCircle,   hint:"Conversations closed without escalation" },
-  { label:"CSAT Score",       value:"4.8/5", change:"+0.3",  up:true,  icon:TrendingUp,    hint:"Avg customer satisfaction this week" },
-  { label:"AI Assist Rate",   value:"67%",   change:"+12%",  up:true,  icon:Zap,           hint:"Messages handled or suggested by AI" },
-  { label:"Active Chats",     value:"38",    change:"+4",    up:true,  icon:MessageSquare, hint:"Open conversations right now" },
-  { label:"At-Risk Customers",value:"23",    change:"+3",    up:false, icon:AlertTriangle, hint:"Customers with negative sentiment trend" },
-];
-const TABS = ["Overview","Channels","Sentiment","Alerts"];
-
 function Card({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -106,39 +65,130 @@ function Card({ children, style = {} }: { children: React.ReactNode; style?: Rea
   );
 }
 
+const ANALYTICS_AGENT = import.meta.env.VITE_ANALYTICS_AGENT_URL;
+const TABS = ["Overview", "Channels", "Sentiment", "Alerts"];
+
 /* ════════════════════════════════════════════ */
 export default function AnalyticsPage() {
   const [tab, setTab] = useState("Overview");
+  
+  const [metrics, setMetrics] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [channelBreakdown, setChannelBreakdown] = useState<any>(null);
+  const [sentimentTrend, setSentimentTrend] = useState<any>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  const fetchData = async () => {
+    setError("");
+    try {
+      const [m, r, c, s, a] = await Promise.all([
+        axios.get(`${ANALYTICS_AGENT}/analytics-agent/metrics`),
+        axios.get(`${ANALYTICS_AGENT}/analytics-agent/recommendations`),
+        axios.get(`${ANALYTICS_AGENT}/analytics-agent/channel-breakdown`),
+        axios.get(`${ANALYTICS_AGENT}/analytics-agent/sentiment-trend`),
+        axios.get(`${ANALYTICS_AGENT}/analytics-agent/alerts`)
+      ]);
+      setMetrics(m.data);
+      setRecommendations(r.data.recommendations || []);
+      setChannelBreakdown(c.data);
+      setSentimentTrend(s.data);
+      setAlerts(a.data || []);
+      setLastUpdated(new Date());
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to fetch analytics from agent: " + (err.message || "Unknown error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const timeDiff = Math.floor((new Date().getTime() - lastUpdated.getTime()) / 1000);
+  const isStale = timeDiff > 120;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-green-400 opacity-60 bg-black/90">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00e676]" />
+        <p className="text-xs uppercase tracking-widest font-mono font-bold">Initializing Analytics Pipeline...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-red-400 bg-black/90">
+        <AlertCircle className="w-10 h-10" />
+        <p className="text-sm font-bold">{error}</p>
+        <button onClick={fetchData} className="px-4 py-2 border border-red-400/30 rounded bg-red-400/10 text-xs font-mono uppercase tracking-widest hover:bg-red-400/30 transition-all">Retry</button>
+      </div>
+    );
+  }
+
+  const kpis = metrics ? [
+    { label:"Avg Response",     value:`${metrics.summary?.activeChats || 0}m`, change:`Using Active Load`, up:false, icon:Clock,         hint:"Time to first reply across all channels" },
+    { label:"Resolution Rate",  value:`${metrics.rates?.emailResolutionRate || 0}%`, change:`Calculated Live`, up:true, icon:CheckCircle,   hint:"Conversations closed without escalation" },
+    { label:"CSAT Score",       value:`${metrics.sentiment?.positive || 0}%`, change:`Last 24h limit`, up:true,  icon:TrendingUp,    hint:"Avg customer satisfaction this week" },
+    { label:"AI Assist Rate",   value:`${metrics.rates?.aiReplyRate || 0}%`, change:`Autodrafts utilized`,  up:true,  icon:Zap,           hint:"Messages handled or suggested by AI" },
+    { label:"Active Chats",     value:`${metrics.summary?.activeChats || 0}`,    change:`Real-time count`,  up:true,  icon:MessageSquare, hint:"Open conversations right now" },
+    { label:"At-Risk Customers",value:`${metrics.summary?.atRiskCustomers || 0}`,    change:`Detected globally`, up:false, icon:AlertTriangle, hint:"Customers with negative sentiment trend" },
+  ] : [];
+
+  const activityData = [
+    { name: "Emails Last 24h", value: metrics?.recentActivity?.emailsLast24h || 0 },
+    { name: "WA Last 24h", value: metrics?.recentActivity?.whatsappLast24h || 0 }
+  ];
+
+  const trendData = sentimentTrend?.trend?.map((t: any) => ({
+    date: t.date,
+    value: Math.round((t.positive / (t.positive + t.neutral + t.negative || 1)) * 100)
+  })) || [];
 
   return (
     <div style={{
       padding:"24px 28px", background:T.bg,
       minHeight:"100%", fontFamily:T.body, color:T.text,
-      overflowY:"auto",
+      overflowY:"auto"
     }}>
 
       {/* ── HEADER ── */}
       <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} style={{marginBottom:22}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-          <Activity size={14} style={{color:T.green}}/>
-          <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.18em",textTransform:"uppercase"}}>
-            Performance Intelligence
-          </span>
-        </div>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-          <h1 style={{fontFamily:T.display,fontSize:"clamp(1.8rem,3vw,2.8rem)",letterSpacing:"0.06em",lineHeight:1,color:T.text}}>
-            ANALYTICS
-          </h1>
-          <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,display:"flex",alignItems:"center",gap:6}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:T.green,
-              boxShadow:`0 0 6px ${T.green}`,display:"inline-block"}}/>
-            Live · Updated 30s ago
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <Activity size={14} style={{color:T.green}}/>
+              <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.18em",textTransform:"uppercase"}}>
+                Performance Intelligence
+              </span>
+            </div>
+            <h1 style={{fontFamily:T.display,fontSize:"clamp(1.8rem,3vw,2.8rem)",letterSpacing:"0.06em",lineHeight:1,color:T.text}}>
+              ANALYTICS
+            </h1>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={fetchData} className="p-2 rounded bg-white/[0.05] border border-white/[0.05] hover:bg-white/[0.1] transition-all">
+              <RefreshCw className={`w-4 h-4 text-green-400 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <div style={{fontFamily:T.mono,fontSize:9,color:isStale ? "#ffa726" : T.dim,display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,padding:"6px 12px",borderRadius:20}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:isStale ? "#ffa726" : T.green,
+                boxShadow:`0 0 6px ${isStale ? "#ffa726" : T.green}`,display:"inline-block"}}/>
+              Live · Updated {Math.floor(timeDiff)}s ago
+            </div>
           </div>
         </div>
       </motion.div>
 
       {/* ── KPI STRIP ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:8,marginBottom:20}}>
         {kpis.map((k,i)=>(
           <motion.div key={k.label}
             initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}}
@@ -157,18 +207,24 @@ export default function AnalyticsPage() {
               <span style={{fontFamily:T.mono,fontSize:8,letterSpacing:"0.14em",color:T.dim,textTransform:"uppercase",lineHeight:1.3}}>
                 {k.label}
               </span>
-              <k.icon size={11} style={{color:k.up?`${T.green}80`:"#ef535080"}}/>
+              <k.icon size={11} style={{color:k.up?`${T.green}80`:"#cddc39"}}/>
             </div>
-            <div style={{
-              fontFamily:T.display, fontSize:"1.6rem", letterSpacing:"0.04em",
-              background:`linear-gradient(135deg,${k.up?T.green:T.muted},${k.up?T.aqua:T.dim})`,
-              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-              lineHeight:1, marginBottom:5,
-            }}>{k.value}</div>
+            <motion.div 
+               key={k.value} 
+               initial={{scale:1.1, opacity:0.8}} 
+               animate={{scale:1, opacity:1}}
+               transition={{type:"spring", stiffness:300}}
+               style={{
+                  fontFamily:T.display, fontSize:"1.6rem", letterSpacing:"0.04em",
+                  background:`linear-gradient(135deg,${k.up?T.green:T.muted},${k.up?T.aqua:T.dim})`,
+                  WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+                  lineHeight:1, marginBottom:5,
+               }}
+            >
+              {k.value}
+            </motion.div>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
-              {k.up?<ArrowUpRight size={9} style={{color:T.green}}/>:<ArrowDownRight size={9} style={{color:"#ef5350"}}/>}
-              <span style={{fontFamily:T.mono,fontSize:9,color:k.up?T.green:"#ef5350"}}>{k.change}</span>
-              <span style={{fontFamily:T.mono,fontSize:8,color:T.dim}}>vs last week</span>
+              <span style={{fontFamily:T.mono,fontSize:8,color:T.dim}}>{k.change}</span>
             </div>
           </motion.div>
         ))}
@@ -196,33 +252,19 @@ export default function AnalyticsPage() {
           <Card style={{padding:"20px 20px 14px"}}>
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
               <div>
-                <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:4}}>Response Time Trend</div>
-                <div style={{fontFamily:T.display,fontSize:"1.4rem",color:T.green,letterSpacing:"0.04em"}}>1.2 min avg</div>
+                <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:4}}>Response Activity Trend</div>
+                <div style={{fontFamily:T.display,fontSize:"1.4rem",color:T.green,letterSpacing:"0.04em"}}>24H Snapshot</div>
               </div>
-              <span style={{padding:"3px 10px",borderRadius:20,background:"rgba(0,230,118,0.10)",border:`1px solid ${T.border}`,fontFamily:T.mono,fontSize:9,color:T.green}}>
-                ↓ 28% this week
-              </span>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={responseData} margin={{top:4,right:4,bottom:0,left:-20}}>
-                <defs>
-                  <linearGradient id="respGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={T.green} stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor={T.green} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+              <BarChart data={activityData} margin={{top:4,right:4,bottom:0,left:-20}}>
                 <CartesianGrid {...gridStyle}/>
-                <XAxis dataKey="day"   tick={axisStyle} axisLine={false} tickLine={false}/>
-                <YAxis               tick={axisStyle} axisLine={false} tickLine={false} unit="m"/>
-                <Tooltip content={<ChartTooltip unit="m"/>}/>
-                <Area type="monotone" dataKey="value" stroke={T.green} strokeWidth={2} fill="url(#respGrad)"
-                  dot={{fill:T.green,r:3,strokeWidth:0}}
-                  activeDot={{fill:T.green,r:5,strokeWidth:0,filter:`drop-shadow(0 0 6px ${T.green})`}}/>
-              </AreaChart>
+                <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false}/>
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false}/>
+                <Tooltip content={<ChartTooltip unit=" interactions"/>}/>
+                <Bar dataKey="value" fill={T.green} radius={[4,4,0,0]} maxBarSize={40} />
+              </BarChart>
             </ResponsiveContainer>
-            <div style={{fontFamily:T.mono,fontSize:8,color:T.dim,marginTop:6,textAlign:"center"}}>
-              Goal: ≤ 1.5 min · Faster = better for customer experience
-            </div>
           </Card>
 
           <Card style={{padding:"20px",display:"flex",flexDirection:"column"}}>
@@ -232,213 +274,223 @@ export default function AnalyticsPage() {
                 fontFamily:T.display, fontSize:"4rem", letterSpacing:"0.04em",
                 background:`linear-gradient(135deg,${T.green},${T.aqua})`,
                 WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", lineHeight:1,
-              }}>94%</div>
-              <div style={{fontFamily:T.mono,fontSize:9,color:T.green,marginTop:4}}>↑ Highest this quarter</div>
+              }}>{metrics?.sentiment?.positive || 0}%</div>
             </div>
             <ResponsiveContainer width="100%" height={90}>
-              <LineChart data={satisfactionData} margin={{top:4,right:4,bottom:0,left:-24}}>
+              <LineChart data={trendData} margin={{top:4,right:4,bottom:0,left:-24}}>
                 <CartesianGrid {...gridStyle}/>
-                <XAxis dataKey="month" tick={{...axisStyle,fontSize:8}} axisLine={false} tickLine={false}/>
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} domain={[70,100]}/>
+                <XAxis dataKey="date" tick={{...axisStyle,fontSize:8}} axisLine={false} tickLine={false}/>
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} domain={[0,100]}/>
                 <Tooltip content={<ChartTooltip unit="%"/>}/>
                 <Line type="monotone" dataKey="value" stroke={T.aqua} strokeWidth={2}
                   dot={{fill:T.aqua,r:3,strokeWidth:0}}
                   activeDot={{fill:T.aqua,r:4,strokeWidth:0}}/>
               </LineChart>
             </ResponsiveContainer>
-            <div style={{display:"flex",gap:6,marginTop:12}}>
-              {[["Promoters","72%",T.green],["Passives","18%",T.muted],["Detractors","10%","#ef5350"]].map(([l,v,c])=>(
-                <div key={l as string} style={{flex:1,padding:"8px 6px",borderRadius:6,background:`${c as string}10`,border:`1px solid ${c as string}20`,textAlign:"center"}}>
-                  <div style={{fontFamily:T.display,fontSize:"1.1rem",color:c as string}}>{v}</div>
-                  <div style={{fontFamily:T.mono,fontSize:8,color:T.dim,letterSpacing:"0.08em"}}>{l}</div>
-                </div>
-              ))}
-            </div>
           </Card>
         </motion.div>
       )}
 
       {/* ══ CHANNELS ══ */}
-      {tab==="Channels" && (
-        <motion.div key="channels" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <Card style={{padding:"20px 20px 14px",marginBottom:12}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div>
-                <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:4}}>Message Volume by Channel</div>
-                <div style={{fontFamily:T.display,fontSize:"1.2rem",color:T.text,letterSpacing:"0.04em"}}>This Week · All Channels</div>
+      {tab==="Channels" && channelBreakdown && (
+        <motion.div key="channels" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+           {/* Email Card */}
+           <Card style={{padding:"20px"}}>
+              <div className="flex items-center gap-2 mb-4">
+                 <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20"><Mail className="w-5 h-5 text-blue-400"/></div>
+                 <h3 className="font-bold text-lg text-blue-400">Email Pipeline</h3>
               </div>
-              <div style={{display:"flex",gap:12}}>
-                {[["WhatsApp",T.green],["Email",T.aqua],["SMS","#00bcd4"],["Call","#4db6ac"]].map(([l,c])=>(
-                  <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:T.mono,fontSize:9,color:T.muted}}>
-                    <div style={{width:8,height:8,borderRadius:2,background:c as string}}/> {l}
-                  </div>
-                ))}
+              <div className="space-y-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Total Volume</span><span className="text-white font-bold text-sm bg-white/5 py-0.5 px-2 rounded">{channelBreakdown.email?.total || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Replied</span><span className="text-green-400 font-bold">{channelBreakdown.email?.replied || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Pending</span><span className="text-orange-400 font-bold">{channelBreakdown.email?.unreplied || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>AI Handled</span><span className="text-purple-400 font-bold">{channelBreakdown.email?.aiReplied || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span>Resolution Rate</span><span className="text-blue-400 font-bold">{channelBreakdown.email?.resolutionRate || 0}%</span>
+                 </div>
               </div>
-            </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={channelVolumeData} margin={{top:4,right:4,bottom:0,left:-16}} barGap={2}>
-                <CartesianGrid {...gridStyle} vertical={false}/>
-                <XAxis dataKey="day" tick={axisStyle} axisLine={false} tickLine={false}/>
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false}/>
-                <Tooltip contentStyle={{background:"rgba(3,10,6,0.96)",border:`1px solid ${T.border}`,borderRadius:8,fontFamily:T.mono,fontSize:11}}
-                  labelStyle={{color:T.green,marginBottom:4,letterSpacing:"0.08em"}} itemStyle={{color:T.muted}}/>
-                <Bar dataKey="whatsapp" name="WhatsApp" fill={T.green}  radius={[3,3,0,0]} maxBarSize={16}/>
-                <Bar dataKey="email"    name="Email"    fill={T.aqua}   radius={[3,3,0,0]} maxBarSize={16}/>
-                <Bar dataKey="sms"      name="SMS"      fill="#00bcd4"  radius={[3,3,0,0]} maxBarSize={16}/>
-                <Bar dataKey="call"     name="Call"     fill="#4db6ac"  radius={[3,3,0,0]} maxBarSize={16}/>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
+              <div className="mt-4 w-full h-1.5 bg-blue-500/10 rounded overflow-hidden">
+                 <motion.div initial={{width:0}} animate={{width:`${channelBreakdown.email?.resolutionRate||0}%`}} className="h-full bg-blue-400" />
+              </div>
+           </Card>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {[
-              {label:"WhatsApp",pct:48,msgs:895,color:T.green},
-              {label:"Email",   pct:29,msgs:583,color:T.aqua},
-              {label:"SMS",     pct:14,msgs:327,color:"#00bcd4"},
-              {label:"Calls",   pct:9, msgs:179,color:"#4db6ac"},
-            ].map(c=>(
-              <Card key={c.label} style={{padding:"16px"}}>
-                <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,marginBottom:8,letterSpacing:"0.12em",textTransform:"uppercase"}}>{c.label}</div>
-                <div style={{fontFamily:T.display,fontSize:"2rem",color:c.color,marginBottom:6}}>{c.pct}%</div>
-                <div style={{width:"100%",height:3,borderRadius:2,background:"rgba(255,255,255,0.05)",overflow:"hidden",marginBottom:6}}>
-                  <motion.div initial={{width:0}} animate={{width:`${c.pct}%`}} transition={{duration:0.8}}
-                    style={{height:"100%",background:c.color,borderRadius:2}}/>
-                </div>
-                <div style={{fontFamily:T.mono,fontSize:9,color:T.muted}}>{c.msgs.toLocaleString()} msgs</div>
-              </Card>
-            ))}
-          </div>
+           {/* WA Card */}
+           <Card style={{padding:"20px"}}>
+              <div className="flex items-center gap-2 mb-4">
+                 <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20"><Smartphone className="w-5 h-5 text-green-400"/></div>
+                 <h3 className="font-bold text-lg text-green-400">WhatsApp Hub</h3>
+              </div>
+              <div className="space-y-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Total Chats</span><span className="text-white font-bold text-sm bg-white/5 py-0.5 px-2 rounded">{channelBreakdown.whatsapp?.total || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Unread</span><span className="text-orange-400 font-bold">{channelBreakdown.whatsapp?.unread || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Active Flows</span><span className="text-green-400 font-bold">{channelBreakdown.whatsapp?.active || 0}</span>
+                 </div>
+              </div>
+           </Card>
+
+           {/* Social Card */}
+           <Card style={{padding:"20px"}}>
+              <div className="flex items-center gap-2 mb-4">
+                 <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20"><Globe className="w-5 h-5 text-purple-400"/></div>
+                 <h3 className="font-bold text-lg text-purple-400">Social Radar</h3>
+              </div>
+              <div className="space-y-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Scraped Total</span><span className="text-white font-bold text-sm bg-white/5 py-0.5 px-2 rounded">{channelBreakdown.social?.total || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center pb-2 border-b border-white/[0.04]">
+                   <span>Complaints</span><span className="text-red-400 font-bold">{channelBreakdown.social?.complaints || 0}</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span>Resolved</span><span className="text-green-400 font-bold">{channelBreakdown.social?.resolved || 0}</span>
+                 </div>
+                 <div className="text-[10px] mt-4 pt-4 border-t border-white/[0.06] opacity-80 space-y-2">
+                   <div className="flex justify-between text-blue-300"><span>Twitter</span><span>{channelBreakdown.social?.byPlatform?.twitter || 0}</span></div>
+                   <div className="flex justify-between text-orange-300"><span>Reddit</span><span>{channelBreakdown.social?.byPlatform?.reddit || 0}</span></div>
+                   <div className="flex justify-between text-red-300"><span>YouTube</span><span>{channelBreakdown.social?.byPlatform?.youtube || 0}</span></div>
+                 </div>
+              </div>
+           </Card>
         </motion.div>
       )}
 
       {/* ══ SENTIMENT ══ */}
-      {tab==="Sentiment" && (
-        <motion.div key="sentiment" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}
-          style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14}}>
-
+      {tab==="Sentiment" && sentimentTrend && (
+        <motion.div key="sentiment" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14}}>
           <Card style={{padding:"20px 20px 14px"}}>
-            <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:4}}>Sentiment Distribution · This Week</div>
-            <div style={{fontFamily:T.display,fontSize:"1.2rem",color:T.text,marginBottom:14}}>
-              77% Positive today — <span style={{color:T.green}}>↑ improving</span>
-            </div>
+            <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:14}}>7-Day Sentiment Timeline</div>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={sentimentTrend} margin={{top:4,right:4,bottom:0,left:-20}}>
-                <defs>
-                  <linearGradient id="posGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={T.green} stopOpacity={0.28}/><stop offset="95%" stopColor={T.green} stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="neuGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={T.muted} stopOpacity={0.18}/><stop offset="95%" stopColor={T.muted} stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="negGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#ef5350" stopOpacity={0.20}/><stop offset="95%" stopColor="#ef5350" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid {...gridStyle}/>
-                <XAxis dataKey="day" tick={axisStyle} axisLine={false} tickLine={false}/>
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} unit="%"/>
-                <Tooltip contentStyle={{background:"rgba(3,10,6,0.96)",border:`1px solid ${T.border}`,borderRadius:8,fontFamily:T.mono,fontSize:11}}
-                  labelStyle={{color:T.green,marginBottom:4}} itemStyle={{color:T.muted}}/>
-                <Area type="monotone" dataKey="positive" name="Positive" stroke={T.green}   strokeWidth={2} fill="url(#posGrad)"/>
-                <Area type="monotone" dataKey="neutral"  name="Neutral"  stroke={T.muted}   strokeWidth={1.5} fill="url(#neuGrad)"/>
-                <Area type="monotone" dataKey="negative" name="Negative" stroke="#ef5350"   strokeWidth={1.5} fill="url(#negGrad)"/>
-              </AreaChart>
+               <AreaChart data={sentimentTrend.trend} margin={{top:4,right:4,bottom:0,left:-20}}>
+                 <defs>
+                   <linearGradient id="posGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.green} stopOpacity={0.28}/><stop offset="95%" stopColor={T.green} stopOpacity={0}/></linearGradient>
+                   <linearGradient id="neuGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.muted} stopOpacity={0.18}/><stop offset="95%" stopColor={T.muted} stopOpacity={0}/></linearGradient>
+                   <linearGradient id="negGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef5350" stopOpacity={0.20}/><stop offset="95%" stopColor="#ef5350" stopOpacity={0}/></linearGradient>
+                 </defs>
+                 <CartesianGrid {...gridStyle}/>
+                 <XAxis dataKey="date" tick={axisStyle} axisLine={false} tickLine={false}/>
+                 <YAxis tick={axisStyle} axisLine={false} tickLine={false}/>
+                 <Tooltip contentStyle={{background:"rgba(3,10,6,0.96)",border:`1px solid ${T.border}`,borderRadius:8,fontFamily:T.mono,fontSize:11}} labelStyle={{color:T.green,marginBottom:4}} itemStyle={{color:T.muted}}/>
+                 <Area type="monotone" dataKey="positive" name="Positive" stroke={T.green} strokeWidth={2} fill="url(#posGrad)"/>
+                 <Area type="monotone" dataKey="neutral" name="Neutral" stroke={T.muted} strokeWidth={1.5} fill="url(#neuGrad)"/>
+                 <Area type="monotone" dataKey="negative" name="Negative" stroke="#ef5350" strokeWidth={1.5} fill="url(#negGrad)"/>
+               </AreaChart>
             </ResponsiveContainer>
-            <div style={{display:"flex",gap:14,marginTop:8}}>
-              {[["Positive",T.green],["Neutral",T.muted],["Negative","#ef5350"]].map(([l,c])=>(
-                <div key={l as string} style={{display:"flex",alignItems:"center",gap:5,fontFamily:T.mono,fontSize:9,color:c as string}}>
-                  <div style={{width:8,height:2,background:c as string,borderRadius:1}}/> {l}
-                </div>
-              ))}
-            </div>
           </Card>
 
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <Card style={{padding:"16px"}}>
-              <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:10}}>Today's Snapshot</div>
-              {[{label:"Positive",val:77,color:T.green},{label:"Neutral",val:17,color:T.muted},{label:"Negative",val:6,color:"#ef5350"}].map(s=>(
-                <div key={s.label} style={{marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                    <span style={{fontFamily:T.mono,fontSize:9,color:T.muted}}>{s.label}</span>
-                    <span style={{fontFamily:T.mono,fontSize:9,color:s.color,fontWeight:700}}>{s.val}%</span>
-                  </div>
-                  <div style={{width:"100%",height:4,borderRadius:2,background:"rgba(255,255,255,0.05)"}}>
-                    <motion.div initial={{width:0}} animate={{width:`${s.val}%`}} transition={{duration:0.8}}
-                      style={{height:"100%",borderRadius:2,background:s.color,boxShadow:`0 0 8px ${s.color}60`}}/>
-                  </div>
-                </div>
-              ))}
-            </Card>
-
-            <div style={{background:"rgba(239,83,80,0.06)",border:"1px solid rgba(239,83,80,0.18)",borderRadius:8,padding:"14px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                <AlertTriangle size={12} style={{color:"#ef5350"}}/>
-                <span style={{fontFamily:T.mono,fontSize:9,color:"#ef5350",letterSpacing:"0.14em",textTransform:"uppercase"}}>Needs Attention</span>
-              </div>
-              <div style={{fontFamily:T.mono,fontSize:10,color:T.muted,lineHeight:1.7}}>
-                <span style={{color:"#ef5350",fontWeight:700}}>3 customers</span> showed negative sentiment shift in last 2h. Recommend proactive outreach.
-              </div>
-              <button style={{
-                marginTop:10,width:"100%",padding:"7px",borderRadius:6,
-                background:"rgba(239,83,80,0.12)",border:"1px solid rgba(239,83,80,0.25)",
-                color:"#ef5350",fontFamily:T.mono,fontSize:9,cursor:"pointer",
-                letterSpacing:"0.10em",textTransform:"uppercase",
-              }}>View At-Risk Customers →</button>
-            </div>
-          </div>
+          <Card style={{padding:"20px"}}>
+             <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:20}}>Overall Breakdown</div>
+             {[{label:"Positive",val:sentimentTrend.overall?.positive||0,color:T.green},{label:"Neutral",val:sentimentTrend.overall?.neutral||0,color:T.muted},{label:"Negative",val:sentimentTrend.overall?.negative||0,color:"#ef5350"}].map(s=>(
+               <div key={s.label} className="mb-6 bg-white/[0.02] p-4 rounded-xl border border-white/[0.05]">
+                 <div className="flex justify-between items-center mb-2">
+                    <span className="font-mono text-xs tracking-widest uppercase font-bold" style={{color:s.color}}>{s.label}</span>
+                    <span className="font-display text-2xl" style={{color:s.color}}>{s.val}</span>
+                 </div>
+               </div>
+             ))}
+          </Card>
         </motion.div>
       )}
 
       {/* ══ ALERTS ══ */}
       {tab==="Alerts" && (
         <motion.div key="alerts" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <Card>
-            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.16em",textTransform:"uppercase"}}>System Alerts</span>
-              <span style={{padding:"3px 10px",borderRadius:20,background:"rgba(239,83,80,0.10)",border:"1px solid rgba(239,83,80,0.25)",fontFamily:T.mono,fontSize:9,color:"#ef5350"}}>
-                2 critical
-              </span>
-            </div>
-            {alerts.map((a,i)=>{
-              const col = a.severity==="high"?"#ef5350":a.severity==="positive"?T.green:"#ffa726";
-              return (
-                <motion.div key={a.id}
-                  initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:i*0.07}}
-                  whileHover={{backgroundColor:"rgba(0,230,118,0.025)"} as any}
-                  style={{
-                    padding:"16px 20px",borderBottom:"1px solid rgba(0,230,118,0.05)",
-                    display:"flex",alignItems:"center",gap:14,
-                    borderLeft:`2px solid ${col}`,cursor:"pointer",transition:"background 0.18s",
-                  }}
-                >
-                  <div style={{width:32,height:32,borderRadius:8,flexShrink:0,
-                    background:`${col}12`,border:`1px solid ${col}30`,
-                    display:"flex",alignItems:"center",justifyContent:"center"}}>
-                    {a.severity==="positive"
-                      ? <CheckCircle size={14} style={{color:col}}/>
-                      : a.severity==="high"
-                      ? <AlertTriangle size={14} style={{color:col}}/>
-                      : <Activity size={14} style={{color:col}}/>}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,color:T.text,marginBottom:3}}>{a.label}</div>
-                    <div style={{fontFamily:T.mono,fontSize:9,color:T.dim}}>{a.time}</div>
-                  </div>
-                  <span style={{
-                    padding:"3px 10px",borderRadius:20,
-                    background:`${col}12`,border:`1px solid ${col}25`,
-                    fontFamily:T.mono,fontSize:8,color:col,
-                    letterSpacing:"0.10em",textTransform:"uppercase",
-                  }}>{a.severity}</span>
-                </motion.div>
-              );
-            })}
-            <div style={{padding:"14px 20px",fontFamily:T.mono,fontSize:9,color:T.dim,textAlign:"center"}}>
-              Showing last 4 alerts · All times in your timezone
-            </div>
+          <Card style={{padding:"20px"}}>
+             <h3 style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:16}}>Active System Alerts</h3>
+             {alerts.length === 0 ? (
+                <div className="text-center p-8 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400">
+                   <CheckCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
+                   <p className="font-bold text-sm uppercase tracking-widest">All Clear</p>
+                   <p className="text-xs mt-1 opacity-70">No active alerts detected. Systems normal.</p>
+                </div>
+             ) : (
+                <div className="space-y-3">
+                   {alerts.map((a: any, i: number) => {
+                      const color = a.severity === "critical" ? "#ef5350" : a.severity === "high" ? "#ffa726" : "#ffca28";
+                      return (
+                        <div key={i} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl shadow-sm border bg-white/[0.02]" style={{borderColor:`${color}30`}}>
+                           <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg" style={{background:`${color}20`,color:color}}><AlertTriangle className="w-5 h-5"/></div>
+                              <div>
+                                 <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded" style={{background:`${color}20`,color}}>{a.severity}</span>
+                                    <span style={{fontFamily:T.mono,fontSize:9,color:T.dim}}>{a.type}</span>
+                                 </div>
+                                 <p className="font-bold text-sm text-white/90">{a.title}</p>
+                              </div>
+                           </div>
+                           <div className="flex items-center gap-4">
+                              <p className="text-xs text-muted-foreground max-w-xs">{a.action}</p>
+                              {a.link && (
+                                 <a href={a.link} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors text-black whitespace-nowrap" style={{background:color}}>
+                                    Go Fix <ChevronRight className="w-3.5 h-3.5"/>
+                                 </a>
+                              )}
+                           </div>
+                        </div>
+                      )
+                   })}
+                </div>
+             )}
           </Card>
         </motion.div>
       )}
+
+      {/* ── AL RECOMMENDATIONS PANEL ── */}
+      <div className="mt-8">
+        <div className="flex flex-col mb-4">
+           <h2 className="text-xl font-bold font-display tracking-wide text-green-400 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-400" /> AI Action Recommendations
+           </h2>
+           <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Based on current system metrics</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+           {recommendations.length === 0 && loading === false && (
+              <div className="col-span-full p-8 text-center bg-white/[0.02] border border-white/[0.05] rounded-xl text-muted-foreground">
+                 <p className="text-sm font-bold opacity-70">No critical recommendations at this time.</p>
+              </div>
+           )}
+           {recommendations.map((rec: any, i: number) => {
+              const priorityCol = rec.priority === 'high' ? 'bg-red-500/10 text-red-500 border-red-500/20' : rec.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20';
+              return (
+                 <Card key={i} style={{padding:"20px", display:"flex", flexDirection:"column", height:"100%"}}>
+                    <div className="flex items-start justify-between mb-4">
+                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-widest border ${priorityCol}`}>{rec.priority}</span>
+                       <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono bg-white/[0.05] px-2 py-0.5 rounded">{rec.category}</span>
+                    </div>
+                    <h3 className="font-bold text-base text-white/90 mb-2 leading-snug">{rec.title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed flex-1">{rec.description}</p>
+                    
+                    <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-3">
+                       <div className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-lg flex gap-2 items-start">
+                          <Activity className="w-4 h-4 text-indigo-400 mt-0.5" />
+                          <div>
+                             <p className="text-[9px] uppercase tracking-widest font-bold text-indigo-300 mb-1">Recommended Action</p>
+                             <p className="text-xs text-indigo-100 font-medium">{rec.action}</p>
+                          </div>
+                       </div>
+                       <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest font-mono flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5"/> Impact: {rec.impact}
+                       </p>
+                    </div>
+                 </Card>
+              )
+           })}
+        </div>
+      </div>
 
     </div>
   );

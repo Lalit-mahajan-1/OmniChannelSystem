@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "gmail": "node gmailAgent.mjs",
-    "whatsapp": "node whatsappAgent.mjs",
+    "whatsapp": "nodemon agents/whatsappAgent.mjs",
+    "omni": "nodemon agents/omniAgent.mjs",
+    "gmail": "nodemon agents/gmailAgent.mjs",
+    "social": "node agents/socialAgent.mjs",
+    "analytics": "node agents/analyticsAgent.mjs",
+    "sentiment": "node agents/sentimentAgent.mjs",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "http": "node src/httpServer.js",
@@ -18,6 +22,7 @@
     "express": "^4.22.1",
     "googleapis": "^131.0.0",
     "mongoose": "^9.3.1",
+    "nodemon": "^3.1.14",
     "puppeteer": "^24.40.0",
     "zod": "^4.3.6"
   }

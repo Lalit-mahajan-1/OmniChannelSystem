@@ -22,7 +22,7 @@ import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import CampaignsPage from "@/pages/dashboard/CampaignsPage";
 import CompliancePage from "@/pages/dashboard/CompliancePage";
 import AIControlPage from "@/pages/dashboard/AIControlPage";
-import WorkflowPage from "@/pages/dashboard/WorkflowPage";
+import ReportsPage from "@/pages/dashboard/ReportsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
 
 const queryClient = new QueryClient();
@@ -56,7 +56,7 @@ export default function App() {
                   <Route path="campaigns" element={<CampaignsPage />} />
                   <Route path="compliance" element={<CompliancePage />} />
                   <Route path="ai-control" element={<AIControlPage />} />
-                  <Route path="workflow" element={<WorkflowPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Route>

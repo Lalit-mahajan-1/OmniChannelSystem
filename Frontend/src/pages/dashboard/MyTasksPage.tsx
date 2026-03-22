@@ -16,10 +16,18 @@ import {
   BarChart3,
   TrendingUp,
   Info,
+  Zap,
+  Sparkles,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const BASE = import.meta.env.VITE_API_URL;
+const SOCIAL_AGENT = import.meta.env.VITE_SOCIAL_AGENT_URL;
 
 interface UserDetails {
   _id: string;
@@ -139,6 +147,18 @@ export default function MyTasksPage() {
     placeholder2: "",
     loading: false,
   });
+
+  // Social Agent States
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analysisMap, setAnalysisMap] = useState<Map<string, any>>(new Map());
+  const [analyzingAll, setAnalyzingAll] = useState(false);
+  const criticalCount = Array.from(analysisMap.values()).filter(a => a.urgency === 'critical').length;
+  
+  const [replyModalOpen, setReplyModalOpen] = useState(false);
+  const [selectedTone, setSelectedTone] = useState("Empathetic");
+  const [generatedReply, setGeneratedReply] = useState("");
+  const [replyGenerating, setReplyGenerating] = useState(false);
+  const [showTemplate, setShowTemplate] = useState(false);
 
   const { user } = useAuth();
   const token = localStorage.getItem("token");
@@ -263,6 +283,64 @@ export default function MyTasksPage() {
       await refreshAll();
     } catch (err: any) {
       openModal("error", id, "Update Error", err.response?.data?.message || "Failed to update status");
+    }
+  };
+
+  // --- SOCIAL AGENT INTEGRATION COMMANDS ---
+
+  const analyzeSingle = async (complaintId: string) => {
+    setAnalyzingId(complaintId);
+    try {
+      const res = await axios.post(`${SOCIAL_AGENT}/social-agent/analyze/${complaintId}`);
+      setAnalysisMap(prev => new Map(prev).set(complaintId, res.data.analysis));
+      toast.success("AI Analysis complete");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "AI Analysis failed");
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
+  const analyzeAll = async () => {
+    setAnalyzingAll(true);
+    toast.info("AI Analysis started...");
+    try {
+      const res = await axios.post(`${SOCIAL_AGENT}/social-agent/analyze-all`, { limit: 20 });
+      const newMap = new Map(analysisMap);
+      res.data.results.forEach((item: any) => {
+        newMap.set(item.complaintId, item.analysis);
+      });
+      setAnalysisMap(newMap);
+      toast.success(`Analyzed ${res.data.summary.total_analyzed} complaints — ${res.data.summary.critical_count} critical found!`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to analyze all complaints");
+    } finally {
+      setAnalyzingAll(false);
+    }
+  };
+
+  const generateReply = async (complaintId: string) => {
+    setReplyGenerating(true);
+    setReplyModalOpen(true);
+    setGeneratedReply("");
+    try {
+      const res = await axios.post(`${SOCIAL_AGENT}/social-agent/suggest-response/${complaintId}`, { tone: selectedTone });
+      setGeneratedReply(res.data.response);
+    } catch (err: any) {
+      toast.error("Failed to generate AI reply");
+      setReplyModalOpen(false);
+    } finally {
+      setReplyGenerating(false);
+    }
+  };
+
+  const appendAiNote = async (id: string, noteText: string) => {
+    try {
+      await axios.patch(`${BASE}/social/complaints/${id}/note`, { note: noteText }, { headers: authHeaders });
+      toast.success("Note added!");
+      await fetchComplaintDetails(id);
+    } catch (err: any) {
+      toast.error("Failed to add AI note");
     }
   };
 
@@ -395,10 +473,27 @@ export default function MyTasksPage() {
                 <AlertTriangle className="w-5 h-5 text-yellow-400" />
                 My Assigned Tasks
               </h1>
-              <span className="text-xs bg-white/[0.06] px-2 py-1 rounded-full text-muted-foreground border border-white/[0.08]">
-                {total} Found
-              </span>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={analyzeAll} 
+                  disabled={analyzingAll} 
+                  className="px-3 py-1.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30 flex items-center gap-1.5 font-bold hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                >
+                   {analyzingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Zap className="w-3.5 h-3.5"/>}
+                   AI Analyze All
+                </button>
+                <span className="text-xs bg-white/[0.06] px-2 py-1 rounded-full text-muted-foreground border border-white/[0.08]">
+                  {total} Found
+                </span>
+              </div>
             </div>
+
+            {criticalCount > 0 && (
+               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-bold flex items-center justify-center gap-2 animate-pulse">
+                 <AlertCircle className="w-4 h-4"/>
+                 ⚠ {criticalCount} CRITICAL complaints need immediate attention
+               </div>
+            )}
 
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
@@ -522,6 +617,15 @@ export default function MyTasksPage() {
                     >
                       {c.complaintStatus.replace("_", " ")}
                     </span>
+
+                    <button 
+                       onClick={(e) => { e.stopPropagation(); analyzeSingle(c._id); }}
+                       disabled={analyzingId === c._id}
+                       className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[9px] font-bold flex items-center gap-1 hover:bg-purple-500/20 disabled:opacity-50"
+                    >
+                       {analyzingId === c._id ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                       AI Analyze
+                    </button>
                   </div>
                 </motion.button>
               ))}
@@ -604,6 +708,67 @@ export default function MyTasksPage() {
               </div>
 
               <div className="space-y-6">
+                {analysisMap.has(selected._id) && (
+                  <div className="glass-card p-5 rounded-xl border-l-4 border-l-purple-500 border-white/[0.04] bg-gradient-to-br from-purple-500/5 to-transparent shadow-lg text-foreground">
+                     <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/[0.06]">
+                        <h3 className="text-sm font-bold text-purple-400 flex items-center gap-2"><Sparkles className="w-4 h-4" /> AI Action Plan</h3>
+                        <div className="flex items-center gap-2">
+                           <button onClick={() => analyzeSingle(selected._id)} className="text-xs px-2 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-muted-foreground flex items-center gap-1 transition-colors"><RefreshCw className={`w-3 h-3 ${analyzingId === selected._id ? 'animate-spin' : ''}`}/> Re-analyze</button>
+                           <button onClick={analyzeAll} disabled={analyzingAll} className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 font-bold flex items-center gap-1 transition-colors disabled:opacity-50"><Zap className="w-3 h-3"/> Analyze All</button>
+                        </div>
+                     </div>
+                     
+                     <div className="grid grid-cols-3 gap-3 mb-4">
+                        <div className="bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg flex flex-col items-center justify-center text-center">
+                           <span className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1 font-semibold">Urgency</span>
+                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${analysisMap.get(selected._id)?.urgency === 'critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : analysisMap.get(selected._id)?.urgency === 'high' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : analysisMap.get(selected._id)?.urgency === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>{analysisMap.get(selected._id)?.urgency || 'unknown'}</span>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg flex flex-col items-center justify-center text-center">
+                           <span className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1 font-semibold">Category</span>
+                           <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${analysisMap.get(selected._id)?.category === 'fraud' ? 'bg-red-500/10 text-red-400 border-red-500/20' : analysisMap.get(selected._id)?.category === 'billing' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : analysisMap.get(selected._id)?.category === 'technical' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : analysisMap.get(selected._id)?.category === 'service' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-white/[0.05] text-white/80 border-white/[0.1]'}`}>{analysisMap.get(selected._id)?.category || 'general'}</span>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg flex flex-col items-center justify-center text-center">
+                           <span className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1 font-semibold">Escalation</span>
+                           <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${analysisMap.get(selected._id)?.shouldEscalate ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>{analysisMap.get(selected._id)?.shouldEscalate ? "Escalate Now" : "No Escalation"}</span>
+                        </div>
+                     </div>
+                     
+                     <p className="text-xs italic text-muted-foreground mb-4 font-medium opacity-90 border-l-2 border-white/[0.1] pl-3 py-1 bg-white/[0.01] rounded-r">{analysisMap.get(selected._id)?.summary}</p>
+                     
+                     <div className="mb-3 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                        <span className="text-[10px] font-bold uppercase text-indigo-400 block mb-1">Suggested Action</span>
+                        <p className="text-sm font-semibold text-indigo-200">{analysisMap.get(selected._id)?.suggestedAction}</p>
+                     </div>
+                     
+                     <div className="mb-3 rounded-lg bg-green-500/5 border border-green-500/20 overflow-hidden">
+                        <button onClick={() => setShowTemplate(!showTemplate)} className="w-full flex items-center justify-between p-3 bg-green-500/10 hover:bg-green-500/20 transition-colors border-b border-green-500/10 shadow-inner">
+                           <span className="text-[10px] font-bold uppercase text-green-400 flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5"/> Response Template</span>
+                           <div className="flex items-center gap-2">
+                              <span onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(analysisMap.get(selected._id)?.responseTemplate || ""); toast.success('Copied!'); }} className="text-[10px] px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/40 flex items-center gap-1 font-bold shadow-sm"><Copy className="w-3 h-3"/> Copy</span>
+                              {showTemplate ? <ChevronUp className="w-4 h-4 text-green-400"/> : <ChevronDown className="w-4 h-4 text-green-400"/>}
+                           </div>
+                        </button>
+                        {showTemplate && <div className="p-4 text-xs font-medium leading-relaxed text-green-200/90 whitespace-pre-wrap bg-green-500/[0.02]">{analysisMap.get(selected._id)?.responseTemplate}</div>}
+                     </div>
+                     
+                     <div className="mb-4 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20">
+                        <div className="flex items-center justify-between mb-2">
+                           <span className="text-[10px] font-bold uppercase text-yellow-400 block">Internal Note</span>
+                           <button onClick={() => appendAiNote(selected._id, analysisMap.get(selected._id)?.internalNote || "")} className="text-[9px] px-2 py-1.5 rounded bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"><Edit3 className="w-3 h-3"/> Add to Notes</button>
+                        </div>
+                        <p className="text-xs font-medium text-yellow-200/80 italic">{analysisMap.get(selected._id)?.internalNote}</p>
+                     </div>
+                     
+                     {analysisMap.get(selected._id)?.tags?.length > 0 && (
+                       <div className="flex flex-wrap gap-1.5 mt-2">
+                          {analysisMap.get(selected._id).tags.map((tag: string, i: number) => (
+                             <span key={i} className="text-[9px] px-2 py-0.5 rounded-full bg-white/[0.05] text-muted-foreground uppercase font-bold border border-white/[0.05]">{tag}</span>
+                          ))}
+                       </div>
+                     )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="glass-card p-4 rounded-xl border border-white/[0.04]">
                     <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Platform</p>
@@ -664,6 +829,16 @@ export default function MyTasksPage() {
                       </a>
                     </div>
                   )}
+
+                  <div className="mt-4 pt-4 border-t border-white/[0.06] flex justify-end">
+                     <button 
+                        onClick={() => generateReply(selected._id)} 
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-bold uppercase tracking-widest rounded-lg transition-colors"
+                     >
+                        {replyGenerating ? <Loader2 className="w-4 h-4 animate-spin"/> : <MessageSquare className="w-4 h-4"/>} 
+                        Generate Public Reply
+                     </button>
+                  </div>
                 </div>
 
                 {(selected.resolvedBy || selected.resolutionNote) && (
@@ -871,6 +1046,51 @@ export default function MyTasksPage() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+
+        {replyModalOpen && (
+           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-[#0a0a0a] border border-white/[0.1] rounded-xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2"><Sparkles className="w-5 h-5 text-blue-400"/> AI Reply Generator</h3>
+                 <div className="flex gap-2 mb-2">
+                    {['Formal', 'Empathetic', 'Apologetic'].map(tone => (
+                       <button 
+                          key={tone} 
+                          onClick={() => setSelectedTone(tone)} 
+                          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTone === tone ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold' : 'bg-white/[0.02] border-white/[0.05] text-muted-foreground hover:bg-white/[0.05]'}`}
+                       >
+                          {tone}
+                       </button>
+                    ))}
+                 </div>
+                 
+                 <div className="relative">
+                    {replyGenerating && <div className="absolute inset-0 bg-background/50 backdrop-blur-md flex items-center justify-center rounded-lg z-10"><Loader2 className="w-6 h-6 animate-spin text-blue-400"/></div>}
+                    <textarea 
+                       value={generatedReply} 
+                       onChange={e => setGeneratedReply(e.target.value)} 
+                       rows={6} 
+                       className="w-full bg-white/[0.02] border border-white/[0.1] rounded-lg p-3 text-sm focus:outline-none focus:border-blue-400 leading-relaxed text-foreground shadow-inner" 
+                       placeholder="Click generate to create a reply..."
+                    />
+                 </div>
+                 
+                 <div className="flex justify-between items-center pt-2">
+                    <button 
+                       onClick={() => generateReply(selected._id)} 
+                       disabled={replyGenerating}
+                       className="text-xs px-3 py-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] flex items-center gap-1.5 border border-transparent font-medium disabled:opacity-50"
+                    >
+                       <RefreshCw className={`w-3.5 h-3.5 ${replyGenerating ? 'animate-spin' : ''}`}/> Regenerate
+                    </button>
+                    <div className="flex gap-2">
+                       <button onClick={() => { navigator.clipboard.writeText(generatedReply); toast.success('Copied!'); }} disabled={!generatedReply} className="px-3 py-1.5 text-xs rounded border border-white/[0.1] hover:bg-white/[0.05] disabled:opacity-50 font-medium">Copy Reply</button>
+                       <button onClick={() => appendAiNote(selected._id, "AI Public Reply Draft:\n" + generatedReply)} disabled={!generatedReply} className="px-3 py-1.5 text-xs rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 font-bold">Post as Note</button>
+                       <button onClick={() => setReplyModalOpen(false)} className="px-4 py-1.5 text-xs rounded border border-white/[0.1] hover:bg-white/[0.05] font-medium">Close</button>
+                    </div>
+                 </div>
+              </motion.div>
+           </motion.div>
         )}
       </AnimatePresence>
     </div>
