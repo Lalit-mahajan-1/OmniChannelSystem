@@ -99,7 +99,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export default function SocialComplaintsPage() {
+export default function MyTasksPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [selected, setSelected] = useState<Complaint | null>(null);
@@ -107,10 +107,6 @@ export default function SocialComplaintsPage() {
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [scraping, setScraping] = useState(false);
-  const [scrapeKeyword, setScrapeKeyword] = useState("HDFC Bank");
-  const [scrapeResult, setScrapeResult] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState("");
@@ -193,10 +189,11 @@ export default function SocialComplaintsPage() {
     setError("");
 
     try {
+      const employerId = user?._id || (user as any)?.id;
       const params: Record<string, any> = {
         page,
         limit: 10,
-        isComplaint: true,
+        assignedTo: employerId,
       };
 
       if (searchQuery.trim()) params.search = searchQuery.trim();
@@ -253,39 +250,6 @@ export default function SocialComplaintsPage() {
     setTimeout(() => {
       fetchComplaints();
     }, 0);
-  };
-
-  const handleScrape = async () => {
-    if (!scrapeKeyword.trim()) {
-      setScrapeResult("Keyword is required");
-      return;
-    }
-
-    setScraping(true);
-    setScrapeResult("");
-
-    try {
-      const payload = {
-        keyword: scrapeKeyword.trim(),
-        platforms: ["twitter", "reddit", "youtube"],
-        complaintsOnly: false,
-      };
-
-      const res = await axios.post(`${BASE}/social/scrape`, payload, {
-        headers: authHeaders,
-      });
-
-      setScrapeResult(
-        `Fetched ${res.data.meta?.totalFetched || 0}, saved ${res.data.meta?.savedCount || 0}, duplicates ${res.data.meta?.duplicateCount || 0}`
-      );
-
-      setPage(1);
-      await refreshAll(false);
-    } catch (err: any) {
-      setScrapeResult(err.response?.data?.message || "Failed to scrape social platforms");
-    } finally {
-      setScraping(false);
-    }
   };
 
   const updateStatus = async (id: string, complaintStatus: string) => {
@@ -400,24 +364,6 @@ export default function SocialComplaintsPage() {
     openModal("assign", id, "Assign Complaint", "", "Required: Employee ID");
   };
 
-  const assignToMe = async (id: string) => {
-    const employerId = user?._id || (user as any)?.id;
-    if (!employerId) {
-      openModal("error", id, "Assign Error", "Employer ID could not be identified from session.");
-      return;
-    }
-    try {
-      await axios.patch(
-        `${BASE}/social/complaints/${id}/assign`,
-        { assignedTo: employerId },
-        { headers: authHeaders }
-      );
-      await refreshAll(true);
-    } catch (err: any) {
-      openModal("error", id, "Assign Error", err.response?.data?.message || "Failed to self-assign");
-    }
-  };
-
   const linkCustomer = (id: string) => {
     openModal("link", id, "Link Customer", "", "Required: Customer ID");
   };
@@ -441,78 +387,18 @@ export default function SocialComplaintsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {stats && (
-        <div className="flex gap-4 p-4 border-b border-white/[0.06] bg-white/[0.01] shrink-0 overflow-x-auto scrollbar-none">
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <BarChart3 className="w-5 h-5 text-cyan-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Extracted</p>
-              <p className="text-xl font-bold">{stats.total}</p>
-            </div>
-          </div>
-
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <AlertTriangle className="w-5 h-5 text-yellow-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Complaints</p>
-              <p className="text-xl font-bold">{stats.complaints}</p>
-            </div>
-          </div>
-
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Resolved</p>
-              <p className="text-xl font-bold">{stats.status.resolved + stats.status.closed}</p>
-            </div>
-          </div>
-
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <UserPlus className="w-5 h-5 text-purple-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Unassigned</p>
-              <p className="text-xl font-bold">{stats.unassigned}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-1 overflow-hidden">
         <div className="w-1/2 lg:w-2/5 border-r border-white/[0.06] flex flex-col shrink-0">
           <div className="p-4 border-b border-white/[0.06] space-y-4">
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                Social Complaints
+                My Assigned Tasks
               </h1>
               <span className="text-xs bg-white/[0.06] px-2 py-1 rounded-full text-muted-foreground border border-white/[0.08]">
                 {total} Found
               </span>
             </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={scrapeKeyword}
-                onChange={(e) => setScrapeKeyword(e.target.value)}
-                placeholder="Enter keyword e.g. HDFC Bank"
-                className="flex-1 px-3 py-2 bg-white/[0.02] border border-white/[0.06] rounded-lg text-sm focus:outline-none"
-              />
-              <button
-                onClick={handleScrape}
-                disabled={scraping}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-cyan-400 text-white px-4 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {scraping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                {scraping ? "Scanning..." : "Scrape"}
-              </button>
-            </div>
-
-            {scrapeResult && (
-              <p className="text-[11px] text-center text-cyan-300 font-medium px-2 py-1 bg-cyan-500/10 rounded">
-                {scrapeResult}
-              </p>
-            )}
 
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
@@ -815,20 +701,12 @@ export default function SocialComplaintsPage() {
                       <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] text-muted-foreground uppercase">Assigned Employee</span>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => assignToMe(selected._id)}
-                              className="text-[10px] text-purple-400 hover:underline"
-                            >
-                              Self Assign
-                            </button>
-                            <button
-                              onClick={() => assignEmployee(selected._id)}
-                              className="text-[10px] text-cyan-400 hover:underline"
-                            >
-                              Change
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => assignEmployee(selected._id)}
+                            className="text-[10px] text-cyan-400 hover:underline"
+                          >
+                            Change
+                          </button>
                         </div>
                         <p className="text-sm font-medium">
                           {selected.assignedTo ? (

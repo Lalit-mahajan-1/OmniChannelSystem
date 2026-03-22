@@ -65,28 +65,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/emails/:id
-router.get('/:id', async (req, res) => {
-  try {
-    const email = await Email.findOne({ _id: req.params.id, isArchived: false })
-      .populate('customerId', 'name email phone')
-      .populate('employerId', 'name email company')
-      .populate('assignedTo', 'name email company')
-      .populate('notes.addedBy', 'name email company');
-
-    if (!email) {
-      return res.status(404).json({ success: false, message: 'Email not found' });
-    }
-
-    res.status(200).json({ success: true, data: email });
-  } catch (err) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid email ID' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 // GET /api/emails/thread/:threadId
 router.get('/thread/:threadId', async (req, res) => {
   try {
@@ -117,6 +95,28 @@ router.get('/customer/:customerId', async (req, res) => {
 
     res.status(200).json({ success: true, count: emails.length, data: emails });
   } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// GET /api/emails/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const email = await Email.findOne({ _id: req.params.id, isArchived: false })
+      .populate('customerId', 'name email phone')
+      .populate('employerId', 'name email company')
+      .populate('assignedTo', 'name email company')
+      .populate('notes.addedBy', 'name email company');
+
+    if (!email) {
+      return res.status(404).json({ success: false, message: 'Email not found' });
+    }
+
+    res.status(200).json({ success: true, data: email });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid email ID' });
+    }
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -280,6 +280,7 @@ router.post('/:id/reply', async (req, res) => {
       data: outbound,
     });
   } catch (err) {
+    console.error('Reply send error:', err.message);
     res.status(500).json({ success: false, message: 'Failed to send reply' });
   }
 });

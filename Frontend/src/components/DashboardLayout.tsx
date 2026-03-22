@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Inbox, Users, BarChart3, Megaphone, Shield, Brain, GitBranch, Settings, Sparkles, LogOut, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Inbox, Users, BarChart3, Megaphone, Shield, Brain, GitBranch, Settings, Sparkles, LogOut, ChevronLeft, ChevronRight, AlertTriangle, ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/dashboard", icon: Inbox, label: "Inbox", end: true },
   { to: "/dashboard/customers", icon: Users, label: "Customers" },
   { to: "/dashboard/complaints", icon: AlertTriangle, label: "Complaint Box" },
+  { to: "/dashboard/my-tasks", icon: ClipboardList, label: "My Tasks" },
   { to: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
   { to: "/dashboard/compliance", icon: Shield, label: "Compliance" },

@@ -356,10 +356,103 @@ const getChatHistory = async (req, res) => {
   }
 };
 
+const sendDirectMessage = async (req, res) => {
+  try {
+    const { to, message, phoneNumberId } = req.body;
+
+    if (!to || !message?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'to and message are required',
+      });
+    }
+
+    const finalPhoneNumberId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    if (!finalPhoneNumberId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No WhatsApp phone number id configured',
+      });
+    }
+
+    const cleanTo = String(to).replace(/\D/g, '');
+    const formattedPhone = `+${cleanTo}`;
+
+    let employer = await Employer.findOne({
+      phoneNumberId: finalPhoneNumberId,
+      isActive: true,
+    });
+
+    if (!employer) {
+      employer = await Employer.findOne({ isActive: true }).sort({ createdAt: 1 });
+    }
+
+    if (!employer) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active employer found',
+      });
+    }
+
+    let customer = await Customer.findOne({
+      $or: [
+        { phone: formattedPhone },
+        { 'channel_ids.whatsapp': cleanTo },
+      ],
+      isActive: true,
+    });
+
+    if (!customer) {
+      const safeEmail = `wa_${cleanTo}_${Date.now()}@local.placeholder`;
+
+      customer = await Customer.create({
+        name: `WA_${cleanTo}`,
+        email: safeEmail,
+        password: generateCustomerPassword(),
+        phone: formattedPhone,
+        channel_ids: {
+          whatsapp: cleanTo,
+        },
+      });
+    }
+
+    const result = await sendTextMessage(cleanTo, message.trim(), finalPhoneNumberId);
+
+    const savedMessage = await Message.create({
+      employerId: employer._id,
+      customerId: customer._id,
+      from: finalPhoneNumberId,
+      to: cleanTo,
+      messageId: result.messages?.[0]?.id || `out_${Date.now()}`,
+      type: 'text',
+      body: message.trim(),
+      direction: 'outbound',
+      status: 'sent',
+      whatsappTimestamp: new Date(),
+      rawPayload: result,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Direct WhatsApp message sent and saved successfully',
+      data: savedMessage,
+    });
+  } catch (err) {
+    console.error('Send direct message error:', err.response?.data || err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send direct WhatsApp message',
+      error: err.response?.data || err.message,
+    });
+  }
+};
+
 module.exports = {
   verifyWebhook,
   receiveMessage,
   sendMessage,
   getAllChats,
   getChatHistory,
+  sendDirectMessage
 };

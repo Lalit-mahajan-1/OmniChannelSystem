@@ -17,6 +17,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import InboxPage from "@/pages/dashboard/InboxPage";
 import CustomersPage from "@/pages/dashboard/CustomersPage";
 import SocialComplaintsPage from "@/pages/dashboard/SocialComplaintsPage";
+import MyTasksPage from "@/pages/dashboard/MyTasksPage";
 import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import CampaignsPage from "@/pages/dashboard/CampaignsPage";
 import CompliancePage from "@/pages/dashboard/CompliancePage";
@@ -50,6 +51,7 @@ export default function App() {
                   <Route index element={<InboxPage />} />
                   <Route path="customers" element={<CustomersPage />} />
                   <Route path="complaints" element={<SocialComplaintsPage />} />
+                  <Route path="my-tasks" element={<MyTasksPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="campaigns" element={<CampaignsPage />} />
                   <Route path="compliance" element={<CompliancePage />} />
