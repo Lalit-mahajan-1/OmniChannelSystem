@@ -267,8 +267,7 @@ export default function SocialComplaintsPage() {
     try {
       const payload = {
         keyword: scrapeKeyword.trim(),
-        platforms: ["twitter", "reddit", "youtube"],
-        complaintsOnly: false,
+        platforms: ["twitter", "reddit", "youtube"]
       };
 
       const res = await axios.post(`${BASE}/social/scrape`, payload, {

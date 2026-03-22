@@ -8,6 +8,7 @@ const customerRoutes = require('./routes/customerRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const emailRoutes = require('./routes/emailRoutes');
 const socialRoutes = require('./routes/socialRoutes');
+
 const { startGmailPoller } = require('./services/gmailPoller');
 
 const app = express();
