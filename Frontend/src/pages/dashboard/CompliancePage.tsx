@@ -6,24 +6,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-/* ─── theme ─── */
-const T = {
-  green:    "#00e676",
-  greenMid: "#00c853",
-  greenDeep:"#007a3d",
-  aqua:     "#7fffd4",
-  bg:       "#03060a",
-  bgCard:   "rgba(8,16,10,0.95)",
-  border:   "rgba(0,230,118,0.10)",
-  borderHi: "rgba(0,230,118,0.28)",
-  text:     "#e8f5e9",
-  muted:    "#7aab88",
-  dim:      "#3d6b4a",
-  mono:     "'Space Mono', monospace",
-  display:  "'Bebas Neue', sans-serif",
-  body:     "'Syne', sans-serif",
-};
-
 /* ─── data ─── */
 const ALERTS = [
   {
@@ -79,28 +61,28 @@ const PENDING = [
 ];
 
 const alertMeta: Record<string, { color:string; bg:string; border:string; icon:typeof Shield }> = {
-  warning: { color:"#ffa726", bg:"rgba(255,167,38,0.10)", border:"rgba(255,167,38,0.25)", icon:AlertTriangle },
-  success: { color:T.green,   bg:"rgba(0,230,118,0.10)",  border:"rgba(0,230,118,0.25)",  icon:CheckCircle },
-  error:   { color:"#ef5350", bg:"rgba(239,83,80,0.10)",  border:"rgba(239,83,80,0.25)",  icon:AlertCircle },
-  info:    { color:T.aqua,    bg:"rgba(127,255,212,0.10)",border:"rgba(127,255,212,0.25)",icon:Bell },
+  warning: { color:"#F59E0B", bg:"rgba(245,158,11,0.1)", border:"rgba(245,158,11,0.25)", icon:AlertTriangle },
+  success: { color:"#3ECF6A", bg:"rgba(62,207,106,0.1)",  border:"rgba(62,207,106,0.25)",  icon:CheckCircle },
+  error:   { color:"#EF4444", bg:"rgba(239,68,68,0.1)",  border:"rgba(239,68,68,0.25)",  icon:AlertCircle },
+  info:    { color:"#60A5FA", bg:"rgba(96,165,250,0.1)",border:"rgba(96,165,250,0.25)",icon:Bell },
 };
 
 const statusMeta: Record<string, { color:string; bg:string; label:string }> = {
-  active:  { color:T.green,   bg:"rgba(0,230,118,0.10)",  label:"Active" },
-  synced:  { color:T.aqua,    bg:"rgba(127,255,212,0.10)",label:"Synced" },
-  review:  { color:"#ffa726", bg:"rgba(255,167,38,0.10)", label:"Needs Review" },
+  active:  { color:"#3ECF6A", bg:"rgba(62,207,106,0.1)",  label:"Active" },
+  synced:  { color:"#60A5FA", bg:"rgba(96,165,250,0.1)",label:"Synced" },
+  review:  { color:"#F59E0B", bg:"rgba(245,158,11,0.1)", label:"Needs Review" },
 };
 
 const riskMeta: Record<string, { color:string }> = {
-  low:    { color:T.green },
-  medium: { color:"#ffa726" },
-  high:   { color:"#ef5350" },
+  low:    { color:"#3ECF6A" },
+  medium: { color:"#F59E0B" },
+  high:   { color:"#EF4444" },
 };
 
 const channelMeta: Record<string, { color:string }> = {
-  whatsapp: { color:T.green },
-  email:    { color:T.aqua },
-  sms:      { color:"#00bcd4" },
+  whatsapp: { color:"#3ECF6A" },
+  email:    { color:"#60A5FA" },
+  sms:      { color:"#F59E0B" },
 };
 
 const TABS = ["Alerts", "Active Rules", "Pending Approvals"];
@@ -111,16 +93,15 @@ function ScoreRing({ score }: { score: number }) {
   const dash = (score / 100) * circ;
   return (
     <svg width="100" height="100" style={{ transform:"rotate(-90deg)" }}>
-      <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(0,230,118,0.10)" strokeWidth="7"/>
+      <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8"/>
       <motion.circle
         cx="50" cy="50" r={r} fill="none"
-        stroke={score >= 95 ? T.green : score >= 80 ? "#ffa726" : "#ef5350"}
-        strokeWidth="7" strokeLinecap="round"
+        stroke={score >= 95 ? "#3ECF6A" : score >= 80 ? "#F59E0B" : "#EF4444"}
+        strokeWidth="8" strokeLinecap="round"
         strokeDasharray={circ}
         initial={{ strokeDashoffset: circ }}
         animate={{ strokeDashoffset: circ - dash }}
         transition={{ duration: 1.2, ease: "easeOut" }}
-        style={{ filter:`drop-shadow(0 0 6px ${T.green})` }}
       />
     </svg>
   );
@@ -128,149 +109,88 @@ function ScoreRing({ score }: { score: number }) {
 
 /* ══════════════════════════════════════════ */
 export default function CompliancePage() {
-  const [tab,        setTab]        = useState("Alerts");
-  const [alertFilter,setAlertFilter]= useState("all");
-  const [expanded,   setExpanded]   = useState<number | null>(null);
+  const [tab, setTab] = useState("Alerts");
+  const [alertFilter,setAlertFilter] = useState("all");
+  const [expanded, setExpanded] = useState<number | null>(null);
 
   const filteredAlerts = ALERTS.filter(a =>
     alertFilter === "all" || a.type === alertFilter
   );
 
   return (
-    <div style={{
-      padding:"24px 28px", background:T.bg,
-      minHeight:"100%", fontFamily:T.body, color:T.text,
-      overflowY:"auto",
-    }}>
+    <div style={{ padding:"28px 32px", minHeight:"100%", overflowY:"auto" }} className="scrollbar-thin">
 
       {/* ── HEADER ── */}
-      <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} style={{marginBottom:22}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-          <Shield size={14} style={{color:T.green}}/>
-          <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.18em",textTransform:"uppercase"}}>
-            Regulatory Intelligence
-          </span>
-        </div>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-          <h1 style={{fontFamily:T.display,fontSize:"clamp(1.8rem,3vw,2.8rem)",letterSpacing:"0.06em",lineHeight:1,color:T.text}}>
-            COMPLIANCE
-          </h1>
-          <div style={{display:"flex",gap:8}}>
-            <button style={{
-              display:"flex",alignItems:"center",gap:6,
-              padding:"8px 14px",borderRadius:6,
-              border:`1px solid ${T.border}`,background:"transparent",
-              color:T.muted,fontFamily:T.mono,fontSize:10,cursor:"pointer",
-              letterSpacing:"0.10em",transition:"all 0.2s",
-            }}
-            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color=T.green;(e.currentTarget as HTMLButtonElement).style.borderColor=T.borderHi;}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color=T.muted;(e.currentTarget as HTMLButtonElement).style.borderColor=T.border;}}
-            >
-              <RefreshCw size={11}/> Sync Rules
+      <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} style={{marginBottom:"24px"}}>
+        <div className="section-eyebrow">REGULATORY INTELLIGENCE</div>
+        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
+          <h1 className="page-title" style={{ margin:0 }}>Compliance</h1>
+          <div style={{display:"flex",gap:"12px"}}>
+            <button className="btn-ghost-db" style={{ padding: '8px 16px', fontSize: '12px' }}>
+               <RefreshCw style={{ width: '14px', height: '14px' }}/> SYNC RULES
             </button>
-            <button style={{
-              display:"flex",alignItems:"center",gap:6,
-              padding:"8px 14px",borderRadius:6,
-              background:`linear-gradient(135deg,${T.green},${T.greenDeep})`,
-              border:"none",color:"#03060a",fontFamily:T.mono,fontSize:10,
-              fontWeight:700,cursor:"pointer",letterSpacing:"0.10em",
-              boxShadow:`0 0 16px rgba(0,230,118,0.22)`,
-            }}>
-              <Download size={11}/> Export Audit
+            <button className="btn-primary-db" style={{ padding: '8px 16px', fontSize: '12px' }}>
+               <Download style={{ width: '14px', height: '14px' }}/> EXPORT AUDIT
             </button>
           </div>
         </div>
       </motion.div>
 
       {/* ── TOP ROW: score + KPIs ── */}
-      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:"24px",marginBottom:"24px"}}>
 
         {/* Compliance score card */}
-        <motion.div
-          initial={{opacity:0,scale:0.96}} animate={{opacity:1,scale:1}}
-          style={{
-            background:T.bgCard, border:`1px solid ${T.green}30`,
-            borderRadius:8, padding:"20px",
-            display:"flex",flexDirection:"column",alignItems:"center",
-            position:"relative",overflow:"hidden",
-          }}
-        >
-          <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-            background:`linear-gradient(90deg,transparent,${T.green}50,transparent)`}}/>
-          <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:12}}>
-            Compliance Score
-          </div>
-          <div style={{position:"relative",marginBottom:10}}>
+        <motion.div initial={{opacity:0,scale:0.96}} animate={{opacity:1,scale:1}} className="glass-card-db" style={{ padding:"24px", display:"flex",flexDirection:"column",alignItems:"center",position:"relative",overflow:"hidden", border: '1px solid rgba(62,207,106,0.2)', background: 'rgba(62,207,106,0.03)' }}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#3ECF6A,transparent)`, opacity: 0.5}}/>
+          <div className="section-eyebrow" style={{marginBottom:"16px", color: '#475569'}}>COMPLIANCE SCORE</div>
+          <div style={{position:"relative",marginBottom:"16px"}}>
             <ScoreRing score={99.5}/>
-            <div style={{
-              position:"absolute",top:"50%",left:"50%",
-              transform:"translate(-50%,-50%)",
-              fontFamily:T.display,fontSize:"1.5rem",letterSpacing:"0.04em",
-              background:`linear-gradient(135deg,${T.green},${T.aqua})`,
-              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-              lineHeight:1,textAlign:"center",
-            }}>
+            <div style={{ position:"absolute",top:"50%",left:"50%", transform:"translate(-50%,-50%)", fontFamily:"'JetBrains Mono', monospace",fontSize:"20px",fontWeight: 700, color: "#3ECF6A" }}>
               99.5%
             </div>
           </div>
-          <div style={{fontFamily:T.mono,fontSize:9,color:T.green,marginBottom:4}}>
+          <div style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"10px",color:"#3ECF6A",marginBottom:"8px", textTransform: 'uppercase', fontWeight: 600}}>
             ↑ Excellent standing
           </div>
-          <div style={{fontFamily:T.mono,fontSize:8,color:T.dim,textAlign:"center",lineHeight:1.5}}>
+          <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#94A3B8",textAlign:"center",lineHeight:1.5}}>
             All RBI & TRAI rules<br/>passing in real-time
           </div>
         </motion.div>
 
         {/* KPI grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px"}}>
           {[
-            { label:"DND Blocked",        value:"142",   icon:Ban,         color:"#ef5350", sub:"This month" },
-            { label:"Pending Approvals",  value:"3",     icon:Clock,       color:"#ffa726", sub:"Need action" },
-            { label:"Active Consents",    value:"18.2K", icon:CheckCircle, color:T.green,   sub:"Opt-in verified" },
-            { label:"Templates Approved", value:"47",    icon:FileText,    color:T.aqua,    sub:"This quarter" },
+            { label:"DND BLOCKED",        value:"142",   icon:Ban,         color:"#EF4444", sub:"This month" },
+            { label:"PENDING APPROVALS",  value:"3",     icon:Clock,       color:"#F59E0B", sub:"Need action" },
+            { label:"ACTIVE CONSENTS",    value:"18.2K", icon:CheckCircle, color:"#3ECF6A",   sub:"Opt-in verified" },
+            { label:"TEMPLATES APPROVED", value:"47",    icon:FileText,    color:"#60A5FA",    sub:"This quarter" },
           ].map((s,i)=>(
-            <motion.div key={s.label}
-              initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:0.1+i*0.06}}
-              style={{
-                background:T.bgCard, border:`1px solid ${T.border}`,
-                borderRadius:8, padding:"16px 14px", position:"relative", overflow:"hidden",
-              }}
-            >
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-                background:`linear-gradient(90deg,transparent,${s.color}50,transparent)`}}/>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                <span style={{fontFamily:T.mono,fontSize:8,letterSpacing:"0.14em",color:T.dim,textTransform:"uppercase"}}>
-                  {s.label}
-                </span>
-                <s.icon size={11} style={{color:`${s.color}80`}}/>
+            <motion.div key={s.label} initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:0.1+i*0.06}} className="stat-card-db" style={{ padding:"20px" }}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px"}}>
+                <span className="section-eyebrow" style={{ color: '#475569', margin: 0 }}>{s.label}</span>
+                <s.icon style={{ width: '14px', height: '14px', color: s.color }}/>
               </div>
-              <div style={{
-                fontFamily:T.display,fontSize:"2rem",letterSpacing:"0.04em",
-                background:`linear-gradient(135deg,${s.color},${s.color}88)`,
-                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
-                lineHeight:1,marginBottom:5,
-              }}>{s.value}</div>
-              <div style={{fontFamily:T.mono,fontSize:8,color:T.dim}}>{s.sub}</div>
+              <div className="stat-value" style={{ fontSize: '28px', color: '#F1F5F9', marginBottom:"6px" }}>{s.value}</div>
+              <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#7DD3FC"}}>{s.sub}</div>
             </motion.div>
           ))}
         </div>
       </div>
 
       {/* ── TABS ── */}
-      <div style={{display:"flex",gap:4,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
+      <div style={{display:"flex",gap:"8px",marginBottom:"24px",borderBottom:`1px solid rgba(255,255,255,0.07)`}}>
         {TABS.map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{
-            padding:"8px 18px",background:"transparent",border:"none",
-            borderBottom:`2px solid ${tab===t?T.green:"transparent"}`,
-            color:tab===t?T.green:T.dim,
-            fontFamily:T.mono,fontSize:10,letterSpacing:"0.14em",
-            textTransform:"uppercase",cursor:"pointer",transition:"all 0.18s",marginBottom:-1,
-            display:"flex",alignItems:"center",gap:7,
+            padding:"12px 20px",background:"transparent",border:"none",
+            borderBottom:`2px solid ${tab===t?"#3ECF6A":"transparent"}`,
+            color:tab===t?"#3ECF6A":"#94A3B8",
+            fontFamily:"'DM Sans', sans-serif",fontSize:"13px", fontWeight: 600,
+            cursor:"pointer",transition:"all 0.2s",marginBottom:"-1px",
+            display:"flex",alignItems:"center",gap:"8px",
           }}>
             {t}
             {t==="Pending Approvals" && (
-              <span style={{padding:"1px 6px",borderRadius:8,background:"rgba(255,167,38,0.15)",
-                border:"1px solid rgba(255,167,38,0.30)",color:"#ffa726",fontSize:8}}>3</span>
+              <span className="badge-amber" style={{ padding: '2px 6px' }}>3</span>
             )}
           </button>
         ))}
@@ -280,26 +200,26 @@ export default function CompliancePage() {
       {tab==="Alerts" && (
         <motion.div key="alerts" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
           {/* filter row */}
-          <div style={{display:"flex",gap:7,marginBottom:14}}>
+          <div style={{display:"flex",gap:"8px",marginBottom:"16px", alignItems: 'center'}}>
             {["all","success","warning","error","info"].map(f=>{
               const active = alertFilter===f;
               const meta = f!=="all"?alertMeta[f]:null;
               return (
                 <button key={f} onClick={()=>setAlertFilter(f)} style={{
-                  padding:"4px 12px",borderRadius:20,cursor:"pointer",
-                  fontFamily:T.mono,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",
-                  border:`1px solid ${active?(meta?.color??T.green):T.border}`,
-                  background:active?(meta?meta.bg:"rgba(0,230,118,0.08)"):"transparent",
-                  color:active?(meta?.color??T.green):T.dim,transition:"all 0.18s",
+                  padding:"6px 16px",borderRadius:"100px",cursor:"pointer",
+                  fontFamily:"'JetBrains Mono', monospace",fontSize:"11px", fontWeight: 600, textTransform:"uppercase",
+                  border:`1px solid ${active?(meta?.color??"#3ECF6A"):"transparent"}`,
+                  background:active?(meta?meta.bg:"rgba(62,207,106,0.1)"):"rgba(255,255,255,0.05)",
+                  color:active?(meta?.color??"#3ECF6A"):"#94A3B8",transition:"all 0.2s",
                 }}>{f}</button>
               );
             })}
-            <div style={{marginLeft:"auto",fontFamily:T.mono,fontSize:9,color:T.dim,display:"flex",alignItems:"center",gap:5}}>
-              <Filter size={10}/> {filteredAlerts.length} alerts
+            <div style={{marginLeft:"auto",fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",display:"flex",alignItems:"center",gap:"6px"}}>
+              <Filter style={{ width: '12px', height: '12px' }}/> {filteredAlerts.length} ALERTS
             </div>
           </div>
 
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
             <AnimatePresence>
               {filteredAlerts.map((a,i)=>{
                 const m = alertMeta[a.type];
@@ -310,57 +230,39 @@ export default function CompliancePage() {
                     initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} exit={{opacity:0}}
                     transition={{delay:i*0.05}}
                     onClick={()=>setExpanded(isOpen?null:i)}
+                    className="glass-card-db"
                     style={{
-                      background:T.bgCard, border:`1px solid ${isOpen?m.color+"40":T.border}`,
-                      borderLeft:`3px solid ${m.color}`,
-                      borderRadius:8, padding:"14px 18px",
-                      cursor:"pointer", position:"relative", overflow:"hidden",
-                      transition:"all 0.2s",
+                      borderLeft:`3px solid ${m.color}`, padding:"16px 20px",
+                      cursor:"pointer", position:"relative", overflow:"hidden", transition:"all 0.2s",
+                      borderColor: isOpen ? m.border : 'rgba(255,255,255,0.07)',
+                      background: isOpen ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)'
                     }}
-                    whileHover={{borderColor:isOpen?m.color+"40":T.borderHi} as any}
+                    onMouseOver={(e) => { if (!isOpen) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
+                    onMouseOut={(e) => { if (!isOpen) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
                   >
-                    <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                      <div style={{
-                        width:34,height:34,borderRadius:8,flexShrink:0,
-                        background:m.bg,border:`1px solid ${m.border}`,
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                      }}>
-                        <Icon size={15} style={{color:m.color}}/>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:"16px"}}>
+                      <div style={{ width:"40px",height:"40px",borderRadius:"10px",flexShrink:0, background:m.bg, display:"flex",alignItems:"center",justifyContent:"center", color: m.color }}>
+                        <Icon style={{ width: '18px', height: '18px' }}/>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                          <span style={{fontFamily:T.mono,fontSize:11,fontWeight:700,color:T.text,letterSpacing:"0.04em"}}>{a.title}</span>
-                          <span style={{fontFamily:T.mono,fontSize:9,color:T.dim,flexShrink:0,marginLeft:12}}>{a.time}</span>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
+                          <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"15px",fontWeight:600,color:"#F1F5F9"}}>{a.title}</span>
+                          <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",flexShrink:0,marginLeft:"12px"}}>{a.time}</span>
                         </div>
-                        <p style={{fontSize:12,color:T.muted,lineHeight:1.6,margin:0}}>{a.desc}</p>
+                        <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",lineHeight:1.6,margin:0}}>{a.desc}</p>
                       </div>
                     </div>
 
                     <AnimatePresence>
                       {isOpen && (
-                        <motion.div
-                          initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}}
-                          exit={{opacity:0,height:0}} transition={{duration:0.2}}
-                          style={{overflow:"hidden"}}
-                        >
-                          <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.border}`,
-                            display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <span style={{fontFamily:T.mono,fontSize:9,color:T.dim}}>Regulatory basis:</span>
-                              <span style={{
-                                padding:"2px 10px",borderRadius:20,
-                                background:m.bg,border:`1px solid ${m.border}`,
-                                fontFamily:T.mono,fontSize:9,color:m.color,letterSpacing:"0.08em",
-                              }}>{a.rule}</span>
+                        <motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}} transition={{duration:0.2}} style={{overflow:"hidden"}}>
+                          <div style={{marginTop:"16px",paddingTop:"16px",borderTop:`1px solid rgba(255,255,255,0.05)`, display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569"}}>Regulatory basis:</span>
+                              <span style={{ padding:"4px 12px",borderRadius:"100px", background:m.bg,border:`1px solid ${m.border}`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:m.color,textTransform: 'uppercase'}}>{a.rule}</span>
                             </div>
-                            <button style={{
-                              display:"flex",alignItems:"center",gap:5,
-                              padding:"6px 14px",borderRadius:6,
-                              background:`linear-gradient(135deg,${T.green},${T.greenDeep})`,
-                              border:"none",color:"#03060a",fontFamily:T.mono,fontSize:9,
-                              fontWeight:700,cursor:"pointer",letterSpacing:"0.10em",
-                            }}>
-                              {a.action} <ChevronRight size={10}/>
+                            <button className="btn-primary-db" style={{ display:"flex",alignItems:"center",gap:"8px", padding:"8px 16px",fontSize:"11px" }}>
+                              {a.action} <ChevronRight style={{ width: '12px', height: '12px' }}/>
                             </button>
                           </div>
                         </motion.div>
@@ -377,21 +279,16 @@ export default function CompliancePage() {
       {/* ══ ACTIVE RULES TAB ══ */}
       {tab==="Active Rules" && (
         <motion.div key="rules" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <div style={{
-            background:T.bgCard,border:`1px solid ${T.border}`,
-            borderRadius:8,overflow:"hidden",
-          }}>
+          <div className="glass-card-db" style={{ padding: 0, overflow:"hidden" }}>
             <div style={{position:"relative"}}>
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-                background:`linear-gradient(90deg,transparent,${T.green}40,transparent)`}}/>
+              <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#3ECF6A,transparent)`, opacity: 0.5}}/>
             </div>
-            <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,
-              display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:T.green,letterSpacing:"0.16em",textTransform:"uppercase"}}>
+            <div style={{padding:"16px 24px",borderBottom:`1px solid rgba(255,255,255,0.07)`, display:"flex",alignItems:"center",justifyContent:"space-between", background: 'rgba(255,255,255,0.02)'}}>
+              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"14px",fontWeight:600,color:"#3ECF6A",letterSpacing:"0.1em",textTransform:"uppercase"}}>
                 Regulatory Rule Engine
               </span>
-              <span style={{fontFamily:T.mono,fontSize:9,color:T.dim,display:"flex",alignItems:"center",gap:5}}>
-                <Zap size={10} style={{color:T.green}}/> Auto-enforced in real-time
+              <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",display:"flex",alignItems:"center",gap:"6px"}}>
+                <Zap style={{ width: '12px', height: '12px', color: '#3ECF6A' }}/> AUTO-ENFORCED IN REAL-TIME
               </span>
             </div>
 
@@ -400,61 +297,48 @@ export default function CompliancePage() {
               const Icon = r.icon;
               return (
                 <motion.div key={r.label}
-                  initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.06}}
+                  initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.05}}
                   style={{
-                    padding:"16px 20px",borderBottom:`1px solid rgba(0,230,118,0.05)`,
-                    display:"flex",alignItems:"center",gap:14,
-                    transition:"background 0.18s",cursor:"pointer",
+                    padding:"20px 24px",borderBottom:`1px solid rgba(255,255,255,0.05)`,
+                    display:"flex",alignItems:"center",gap:"16px",
+                    transition:"background 0.2s",cursor:"pointer",
                   }}
-                  whileHover={{backgroundColor:"rgba(0,230,118,0.025)"} as any}
+                  onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                  onMouseOut={(e: any) => e.currentTarget.style.background = 'transparent'}
                 >
                   <div style={{
-                    width:36,height:36,borderRadius:8,flexShrink:0,
-                    background:`${T.green}10`,border:`1px solid ${T.border}`,
-                    display:"flex",alignItems:"center",justifyContent:"center",
+                    width:"40px",height:"40px",borderRadius:"10px",flexShrink:0,
+                    background:"rgba(62,207,106,0.1)", display:"flex",alignItems:"center",justifyContent:"center", color: '#3ECF6A'
                   }}>
-                    <Icon size={15} style={{color:T.green}}/>
+                    <Icon style={{ width: '18px', height: '18px' }}/>
                   </div>
                   <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                      <span style={{fontFamily:T.mono,fontSize:11,fontWeight:700,color:T.text,letterSpacing:"0.04em"}}>{r.label}</span>
-                      <span style={{
-                        padding:"2px 8px",borderRadius:20,
-                        background:sm.bg,border:`1px solid ${sm.color}30`,
-                        fontFamily:T.mono,fontSize:8,color:sm.color,
-                        letterSpacing:"0.08em",textTransform:"uppercase",
-                        display:"flex",alignItems:"center",gap:4,
-                      }}>
-                        {r.status==="active"&&<span style={{width:5,height:5,borderRadius:"50%",background:sm.color,boxShadow:`0 0 4px ${sm.color}`}}/>}
+                    <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"8px"}}>
+                      <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"15px",fontWeight:600,color:"#F1F5F9"}}>{r.label}</span>
+                      <span style={{ padding:"4px 10px",borderRadius:"100px", background:sm.bg,border:`1px solid ${sm.bg}`, fontFamily:"'JetBrains Mono', monospace",fontSize:"9px",fontWeight: 600, color:sm.color, textTransform:"uppercase", display:"flex",alignItems:"center",gap:"6px" }}>
+                        {r.status==="active"&&<span style={{width:"6px",height:"6px",borderRadius:"50%",background:sm.color}}/>}
                         {sm.label}
                       </span>
                     </div>
-                    <p style={{fontSize:11,color:T.muted,margin:0,lineHeight:1.5}}>{r.desc}</p>
+                    <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",margin:0,lineHeight:1.5}}>{r.desc}</p>
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:T.mono,fontSize:9,color:T.dim,marginBottom:3}}>Last check</div>
-                    <div style={{fontFamily:T.mono,fontSize:10,color:T.green}}>{r.lastCheck}</div>
+                  <div style={{textAlign:"right",flexShrink:0, paddingRight: '16px'}}>
+                    <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"11px",color:"#475569",marginBottom:"4px"}}>Last check</div>
+                    <div style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"12px",color:"#3ECF6A"}}>{r.lastCheck}</div>
                   </div>
                   {r.status==="review" && (
-                    <button style={{
-                      padding:"5px 12px",borderRadius:6,flexShrink:0,
-                      background:"rgba(255,167,38,0.10)",border:"1px solid rgba(255,167,38,0.30)",
-                      color:"#ffa726",fontFamily:T.mono,fontSize:8,cursor:"pointer",
-                      letterSpacing:"0.10em",display:"flex",alignItems:"center",gap:4,
-                    }}>
-                      <Eye size={9}/> Review
+                    <button className="btn-ghost-db" style={{ padding:"8px 16px", color:"#F59E0B", gap:"6px", background: 'rgba(245,158,11,0.1)' }}>
+                      <Eye style={{ width: '14px', height: '14px' }}/> Review
                     </button>
                   )}
                   {r.status!=="review" && (
-                    <ExternalLink size={13} style={{color:T.dim,flexShrink:0}}/>
+                    <ExternalLink style={{ width: '16px', height: '16px', color: '#475569', flexShrink:0 }}/>
                   )}
                 </motion.div>
               );
             })}
 
-            <div style={{padding:"12px 20px",borderTop:`1px solid ${T.border}`,
-              background:"rgba(0,230,118,0.02)",
-              fontFamily:T.mono,fontSize:9,color:T.dim,textAlign:"center"}}>
+            <div style={{padding:"16px", background:"rgba(255,255,255,0.02)", fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569",textAlign:"center"}}>
               Rules enforced across WhatsApp · Email · SMS · Voice · All channels
             </div>
           </div>
@@ -464,41 +348,26 @@ export default function CompliancePage() {
       {/* ══ PENDING APPROVALS TAB ══ */}
       {tab==="Pending Approvals" && (
         <motion.div key="approvals" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <div style={{
-            background:"rgba(255,167,38,0.03)",border:"1px solid rgba(255,167,38,0.18)",
-            borderRadius:8,padding:"12px 18px",marginBottom:14,
-            display:"flex",alignItems:"flex-start",gap:10,
-          }}>
-            <AlertTriangle size={14} style={{color:"#ffa726",flexShrink:0,marginTop:1}}/>
+          <div style={{ background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.2)", borderRadius:"12px",padding:"16px 24px",marginBottom:"24px", display:"flex",alignItems:"flex-start",gap:"16px" }}>
+            <AlertTriangle style={{ width: '20px', height: '20px', color:"#F59E0B",flexShrink:0,marginTop:"2px"}}/>
             <div>
-              <span style={{fontFamily:T.mono,fontSize:10,fontWeight:700,color:"#ffa726",letterSpacing:"0.12em",textTransform:"uppercase"}}>
-                Action Required
-              </span>
-              <p style={{fontSize:11,color:T.muted,margin:"3px 0 0",lineHeight:1.6}}>
-                3 message templates are pending compliance approval. Templates cannot be used in campaigns until approved. TRAI mandates review within <span style={{color:"#ffa726"}}>24 hours</span>.
+              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"13px",fontWeight:600,color:"#F59E0B",letterSpacing:"0.1em",textTransform:"uppercase", display: 'block', marginBottom: '8px'}}>Action Required</span>
+              <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",margin:0,lineHeight:1.6}}>
+                3 message templates are pending compliance approval. Templates cannot be used in campaigns until approved. TRAI mandates review within <span style={{color:"#F59E0B", fontWeight: 600}}>24 hours</span>.
               </p>
             </div>
           </div>
 
-          <div style={{
-            background:T.bgCard,border:`1px solid ${T.border}`,
-            borderRadius:8,overflow:"hidden",
-          }}>
+          <div className="glass-card-db" style={{ padding: 0, overflow:"hidden" }}>
             <div style={{position:"relative"}}>
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-                background:`linear-gradient(90deg,transparent,#ffa72650,transparent)`}}/>
+              <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#F59E0B,transparent)`, opacity: 0.5 }}/>
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
                 <thead>
                   <tr>
                     {["Template ID","Name","Channel","Submitted By","Waiting","Risk Level","Actions"].map(h=>(
-                      <th key={h} style={{
-                        padding:"10px 16px",textAlign:"left",
-                        fontFamily:T.mono,fontSize:8,letterSpacing:"0.16em",
-                        color:T.dim,textTransform:"uppercase",
-                        borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",
-                      }}>{h}</th>
+                      <th key={h} style={{ padding:"16px 24px",textAlign:"left", fontFamily:"'DM Sans', sans-serif",fontSize:"10px", fontWeight: 600, letterSpacing:"0.1em", color:"#475569",textTransform:"uppercase", borderBottom:`1px solid rgba(255,255,255,0.07)`,whiteSpace:"nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -507,64 +376,29 @@ export default function CompliancePage() {
                     const rm = riskMeta[p.risk];
                     const cm = channelMeta[p.channel];
                     return (
-                      <motion.tr key={p.id}
-                        initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.07}}
-                        style={{borderBottom:"1px solid rgba(0,230,118,0.05)",transition:"background 0.18s",cursor:"pointer"}}
-                        onMouseEnter={e=>(e.currentTarget as HTMLTableRowElement).style.background="rgba(0,230,118,0.025)"}
-                        onMouseLeave={e=>(e.currentTarget as HTMLTableRowElement).style.background="transparent"}
-                      >
-                        <td style={{padding:"14px 16px"}}>
-                          <span style={{fontFamily:T.mono,fontSize:10,color:T.aqua}}>{p.id}</span>
-                        </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <span style={{fontFamily:T.mono,fontSize:11,color:T.text,fontWeight:700}}>{p.name}</span>
-                        </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <span style={{
-                            padding:"2px 10px",borderRadius:20,
-                            background:`${cm.color}12`,border:`1px solid ${cm.color}25`,
-                            fontFamily:T.mono,fontSize:9,color:cm.color,
-                            letterSpacing:"0.08em",textTransform:"uppercase",
-                          }}>{p.channel}</span>
-                        </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <span style={{fontSize:12,color:T.muted}}>{p.submittedBy}</span>
-                        </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:5}}>
-                            <Clock size={10} style={{color:T.dim}}/>
-                            <span style={{fontFamily:T.mono,fontSize:10,color:p.age==="1d"?"#ef5350":"#ffa726"}}>{p.age}</span>
+                      <motion.tr key={p.id} initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.05}} style={{borderBottom:"1px solid rgba(255,255,255,0.05)",cursor:"pointer"}} onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'} onMouseOut={(e: any) => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{padding:"16px 24px"}}><span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"12px",color:"#60A5FA"}}>{p.id}</span></td>
+                        <td style={{padding:"16px 24px"}}><span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"14px",color:"#F1F5F9",fontWeight:500}}>{p.name}</span></td>
+                        <td style={{padding:"16px 24px"}}><span style={{ padding:"4px 10px",borderRadius:"100px", background:`rgba(255,255,255,0.05)`, border:`1px solid rgba(255,255,255,0.1)`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:cm.color, textTransform:"uppercase" }}>{p.channel}</span></td>
+                        <td style={{padding:"16px 24px"}}><span style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8"}}>{p.submittedBy}</span></td>
+                        <td style={{padding:"16px 24px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                            <Clock style={{ width: '12px', height: '12px', color:"#475569"}}/>
+                            <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:p.age==="1d"?"#EF4444":"#F59E0B"}}>{p.age}</span>
                           </div>
                         </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <span style={{
-                            display:"inline-flex",alignItems:"center",gap:4,
-                            padding:"2px 10px",borderRadius:20,
-                            background:`${rm.color}12`,border:`1px solid ${rm.color}25`,
-                            fontFamily:T.mono,fontSize:9,color:rm.color,
-                            letterSpacing:"0.08em",textTransform:"uppercase",
-                          }}>
-                            <span style={{width:5,height:5,borderRadius:"50%",background:rm.color}}/>
-                            {p.risk}
+                        <td style={{padding:"16px 24px"}}>
+                          <span style={{ display:"inline-flex",alignItems:"center",gap:"6px", padding:"4px 10px",borderRadius:"100px", background:`${rm.color}15`, border:`1px solid ${rm.color}30`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:rm.color, textTransform:"uppercase" }}>
+                            <span style={{width:"6px",height:"6px",borderRadius:"50%",background:rm.color}}/> {p.risk}
                           </span>
                         </td>
-                        <td style={{padding:"14px 16px"}}>
-                          <div style={{display:"flex",gap:6}}>
-                            <button style={{
-                              padding:"5px 10px",borderRadius:5,
-                              background:"rgba(0,230,118,0.10)",border:`1px solid ${T.border}`,
-                              color:T.green,fontFamily:T.mono,fontSize:8,cursor:"pointer",
-                              letterSpacing:"0.08em",display:"flex",alignItems:"center",gap:4,
-                            }}>
-                              <CheckCircle size={9}/> Approve
+                        <td style={{padding:"16px 24px"}}>
+                          <div style={{display:"flex",gap:"8px"}}>
+                            <button className="btn-ghost-db" style={{ padding:"6px 12px", color:"#3ECF6A", gap:"6px", background: 'rgba(62,207,106,0.1)', border: '1px solid rgba(62,207,106,0.3)' }}>
+                              <CheckCircle style={{ width: '12px', height: '12px' }}/> Approve
                             </button>
-                            <button style={{
-                              padding:"5px 10px",borderRadius:5,
-                              background:"rgba(239,83,80,0.08)",border:"1px solid rgba(239,83,80,0.20)",
-                              color:"#ef5350",fontFamily:T.mono,fontSize:8,cursor:"pointer",
-                              letterSpacing:"0.08em",display:"flex",alignItems:"center",gap:4,
-                            }}>
-                              <Ban size={9}/> Reject
+                            <button className="btn-ghost-db" style={{ padding:"6px 12px", color:"#EF4444", gap:"6px", background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                              <Ban style={{ width: '12px', height: '12px' }}/> Reject
                             </button>
                           </div>
                         </td>
@@ -574,11 +408,9 @@ export default function CompliancePage() {
                 </tbody>
               </table>
             </div>
-            <div style={{padding:"12px 18px",borderTop:`1px solid ${T.border}`,
-              background:"rgba(0,230,118,0.02)",fontFamily:T.mono,fontSize:9,color:T.dim,
-              display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{padding:"16px 24px",borderTop:`1px solid rgba(255,255,255,0.05)`, background:"rgba(255,255,255,0.02)",fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569", display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span>Approved templates are auto-submitted to TRAI DLT portal</span>
-              <span style={{color:"#ffa726"}}>SLA: 24h review window</span>
+              <span style={{color:"#F59E0B"}}>SLA: 24h review window</span>
             </div>
           </div>
         </motion.div>

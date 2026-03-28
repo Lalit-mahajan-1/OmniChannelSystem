@@ -3,16 +3,22 @@ import cors from 'cors';
 import { google } from 'googleapis';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import connectDB from '../config/db.mjs';
+import { logAgentEvent } from '../services/analyticsLogger.mjs';
+import { askGroq } from '../utils/groq.mjs';
+
 dotenv.config();
 
-const app  = express();
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-const GROQ_KEY    = process.env.GROQ_API_KEY;
-const API_BASE    = process.env.API_BASE    || 'http://localhost:5000/api';
+const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
 const EMPLOYER_ID = process.env.EMPLOYER_MONGO_ID;
-const PORT        = process.env.AGENT_PORT  || 5001;
+const PORT = process.env.AGENT_PORT || 5001;
+
+// ── DB connect
+await connectDB();
 
 // ── Gmail client ──────────────────────────────────────────────────────────────
 const getGmailClient = () => {
@@ -23,28 +29,6 @@ const getGmailClient = () => {
   );
   auth.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
   return google.gmail({ version: 'v1', auth });
-};
-
-// ── Groq AI ───────────────────────────────────────────────────────────────────
-const askGroq = async (systemPrompt, userPrompt) => {
-  const res = await axios.post(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt   },
-      ],
-      max_tokens: 300,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${GROQ_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-  return res.data.choices[0].message.content.trim();
 };
 
 // ── Skip automated senders ────────────────────────────────────────────────────
@@ -63,7 +47,7 @@ const generateSuggestedReply = async (email, threadHistory = []) => {
         .join('\n\n')}\n`
     : '';
 
-  return askGroq(
+  const result = await askGroq(
     `You are a professional customer support agent for a bank.
      Write a helpful, empathetic reply email.
      Keep it under 100 words.
@@ -72,16 +56,17 @@ const generateSuggestedReply = async (email, threadHistory = []) => {
     `${historyText}
      Customer name: ${email.customerId?.name || 'Customer'}
      Subject: ${email.subject}
-     Latest message: ${email.body}`
+     Latest message: ${email.body}`,
+    300
   );
+
+  return result;
 };
 
 // ════════════════════════════════════════════════════════════════════════════
 // ENDPOINTS
 // ════════════════════════════════════════════════════════════════════════════
 
-// GET /agent/emails
-// All unreplied emails with AI suggested reply for each
 app.get('/agent/emails', async (req, res) => {
   try {
     const response = await axios.get(`${API_BASE}/emails`, {
@@ -103,7 +88,7 @@ app.get('/agent/emails', async (req, res) => {
           threadHistory = t.data.data || [];
         } catch {}
 
-        const suggestedReply = await generateSuggestedReply(email, threadHistory);
+        const { content: suggestedReply } = await generateSuggestedReply(email, threadHistory);
         return { ...email, suggestedReply, threadHistory };
       })
     );
@@ -114,8 +99,6 @@ app.get('/agent/emails', async (req, res) => {
   }
 });
 
-// GET /agent/emails/:customerId/history
-// Full email thread history for a customer
 app.get('/agent/emails/:customerId/history', async (req, res) => {
   try {
     const response = await axios.get(
@@ -127,36 +110,99 @@ app.get('/agent/emails/:customerId/history', async (req, res) => {
   }
 });
 
-// POST /agent/emails/:emailId/send-reply
-// Employer edits suggestion and sends final reply
-// Body: { "body": "final reply text" }
 app.post('/agent/emails/:emailId/send-reply', async (req, res) => {
+  const started = Date.now();
+
   try {
     const { body } = req.body;
     if (!body?.trim()) {
       return res.status(400).json({ success: false, message: 'Reply body is required' });
     }
 
+    const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`);
+    const email = emailRes.data.data;
+
+    const sendStart = Date.now();
     const response = await axios.post(
       `${API_BASE}/emails/${req.params.emailId}/reply`,
       { body: body.trim() }
     );
+    const sendLatencyMs = Date.now() - sendStart;
+
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'manual_send',
+      status: 'success',
+      employerId: EMPLOYER_ID,
+      customerId: email?.customerId?._id || email?.customerId || '',
+      emailId: req.params.emailId,
+      threadId: email?.threadId || '',
+      channel: 'email',
+      inboundMessage: email?.body || '',
+      aiReply: body.trim(),
+      generationLatencyMs: 0,
+      sendLatencyMs,
+      totalLatencyMs: Date.now() - started,
+      messageLength: (email?.body || '').length,
+      replyLength: body.trim().length,
+      metadata: {
+        subject: email?.subject || '',
+        fromEmail: email?.fromEmail || '',
+      },
+    });
 
     res.json({ success: true, message: 'Reply sent', data: response.data });
   } catch (err) {
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'manual_send',
+      status: 'failed',
+      employerId: EMPLOYER_ID,
+      emailId: req.params.emailId,
+      channel: 'email',
+      totalLatencyMs: Date.now() - started,
+      errorMessage: err.message,
+    });
+
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /agent/emails/:emailId/auto-reply
-// AI generates and sends without employer editing
 app.post('/agent/emails/:emailId/auto-reply', async (req, res) => {
+  const started = Date.now();
+
   try {
     const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`);
     const email = emailRes.data.data;
 
-    if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
+    if (!email) {
+      await logAgentEvent({
+        agentType: 'gmail',
+        actionType: 'auto_reply',
+        status: 'failed',
+        employerId: EMPLOYER_ID,
+        emailId: req.params.emailId,
+        channel: 'email',
+        totalLatencyMs: Date.now() - started,
+        errorMessage: 'Email not found',
+      });
+      return res.status(404).json({ success: false, message: 'Email not found' });
+    }
+
     if (isAutomated(email.fromEmail)) {
+      await logAgentEvent({
+        agentType: 'gmail',
+        actionType: 'auto_reply',
+        status: 'skipped',
+        employerId: EMPLOYER_ID,
+        customerId: email?.customerId?._id || email?.customerId || '',
+        emailId: req.params.emailId,
+        threadId: email?.threadId || '',
+        channel: 'email',
+        inboundMessage: email?.body || '',
+        totalLatencyMs: Date.now() - started,
+        errorMessage: 'Skipping automated sender',
+      });
       return res.status(400).json({ success: false, message: 'Skipping automated sender' });
     }
 
@@ -166,19 +212,55 @@ app.post('/agent/emails/:emailId/auto-reply', async (req, res) => {
       threadHistory = t.data.data || [];
     } catch {}
 
-    const aiReply = await generateSuggestedReply(email, threadHistory);
+    const ai = await generateSuggestedReply(email, threadHistory);
 
-    await axios.post(`${API_BASE}/emails/${req.params.emailId}/reply`, { body: aiReply });
+    const sendStart = Date.now();
+    await axios.post(`${API_BASE}/emails/${req.params.emailId}/reply`, { body: ai.content });
+    const sendLatencyMs = Date.now() - sendStart;
 
-    res.json({ success: true, message: 'Auto-reply sent', aiReply });
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'auto_reply',
+      status: 'success',
+      employerId: EMPLOYER_ID,
+      customerId: email?.customerId?._id || email?.customerId || '',
+      emailId: req.params.emailId,
+      threadId: email?.threadId || '',
+      channel: 'email',
+      inboundMessage: email?.body || '',
+      aiReply: ai.content,
+      model: ai.model,
+      generationLatencyMs: ai.latencyMs,
+      sendLatencyMs,
+      totalLatencyMs: Date.now() - started,
+      messageLength: (email?.body || '').length,
+      replyLength: ai.content.length,
+      metadata: {
+        subject: email?.subject || '',
+        fromEmail: email?.fromEmail || '',
+      },
+    });
+
+    res.json({ success: true, message: 'Auto-reply sent', aiReply: ai.content });
   } catch (err) {
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'auto_reply',
+      status: 'failed',
+      employerId: EMPLOYER_ID,
+      emailId: req.params.emailId,
+      channel: 'email',
+      totalLatencyMs: Date.now() - started,
+      errorMessage: err.message,
+    });
+
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /agent/emails/auto-reply-all
-// Auto reply to ALL unreplied emails at once
 app.post('/agent/emails/auto-reply-all', async (req, res) => {
+  const started = Date.now();
+
   try {
     const response = await axios.get(`${API_BASE}/emails`, {
       params: { employerId: EMPLOYER_ID },
@@ -203,25 +285,69 @@ app.post('/agent/emails/auto-reply-all', async (req, res) => {
           threadHistory = t.data.data || [];
         } catch {}
 
-        const aiReply = await generateSuggestedReply(email, threadHistory);
-        await axios.post(`${API_BASE}/emails/${email._id}/reply`, { body: aiReply });
-        results.push({ emailId: email._id, from: email.fromEmail, status: 'sent', aiReply });
+        const ai = await generateSuggestedReply(email, threadHistory);
+
+        const sendStart = Date.now();
+        await axios.post(`${API_BASE}/emails/${email._id}/reply`, { body: ai.content });
+        const sendLatencyMs = Date.now() - sendStart;
+
+        await logAgentEvent({
+          agentType: 'gmail',
+          actionType: 'auto_reply_all',
+          status: 'success',
+          employerId: EMPLOYER_ID,
+          customerId: email?.customerId?._id || email?.customerId || '',
+          emailId: email._id,
+          threadId: email?.threadId || '',
+          channel: 'email',
+          inboundMessage: email?.body || '',
+          aiReply: ai.content,
+          model: ai.model,
+          generationLatencyMs: ai.latencyMs,
+          sendLatencyMs,
+          totalLatencyMs: ai.latencyMs + sendLatencyMs,
+          messageLength: (email?.body || '').length,
+          replyLength: ai.content.length,
+          metadata: {
+            subject: email?.subject || '',
+            fromEmail: email?.fromEmail || '',
+          },
+        });
+
+        results.push({ emailId: email._id, from: email.fromEmail, status: 'sent', aiReply: ai.content });
         console.log(`Auto-replied to ${email.fromEmail}`);
       } catch (err) {
+        await logAgentEvent({
+          agentType: 'gmail',
+          actionType: 'auto_reply_all',
+          status: 'failed',
+          employerId: EMPLOYER_ID,
+          customerId: email?.customerId?._id || email?.customerId || '',
+          emailId: email._id,
+          threadId: email?.threadId || '',
+          channel: 'email',
+          inboundMessage: email?.body || '',
+          totalLatencyMs: 0,
+          errorMessage: err.message,
+          metadata: {
+            subject: email?.subject || '',
+            fromEmail: email?.fromEmail || '',
+          },
+        });
+
         results.push({ emailId: email._id, from: email.fromEmail, status: 'failed' });
       }
     }
 
-    res.json({ success: true, handled: results.length, results });
+    res.json({ success: true, handled: results.length, results, totalLatencyMs: Date.now() - started });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /agent/emails/suggest
-// Regenerate AI suggestion (employer clicks "regenerate")
-// Body: { emailId, customMessage (optional hint from employer) }
 app.post('/agent/emails/suggest', async (req, res) => {
+  const started = Date.now();
+
   try {
     const { emailId, customMessage } = req.body;
 
@@ -242,41 +368,72 @@ app.post('/agent/emails/suggest', async (req, res) => {
          Write a helpful, empathetic reply email under 100 words.
          Sign off as "Support Team".`;
 
-    const suggestion = await askGroq(
+    const ai = await askGroq(
       systemPrompt,
       `Customer: ${email.customerId?.name || 'Customer'}
        Subject: ${email.subject}
-       Message: ${email.body}`
+       Message: ${email.body}`,
+      300
     );
 
-    res.json({ success: true, suggestion });
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'suggestion',
+      status: 'success',
+      employerId: EMPLOYER_ID,
+      customerId: email?.customerId?._id || email?.customerId || '',
+      emailId,
+      threadId: email?.threadId || '',
+      channel: 'email',
+      inboundMessage: email?.body || '',
+      aiReply: ai.content,
+      model: ai.model,
+      generationLatencyMs: ai.latencyMs,
+      totalLatencyMs: Date.now() - started,
+      messageLength: (email?.body || '').length,
+      replyLength: ai.content.length,
+      metadata: {
+        subject: email?.subject || '',
+        customMessage: customMessage || '',
+      },
+    });
+
+    res.json({ success: true, suggestion: ai.content });
   } catch (err) {
+    await logAgentEvent({
+      agentType: 'gmail',
+      actionType: 'suggestion',
+      status: 'failed',
+      employerId: EMPLOYER_ID,
+      channel: 'email',
+      totalLatencyMs: Date.now() - started,
+      errorMessage: err.message,
+    });
+
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /agent/generate-omni
-// Generate a response based on raw omnichannel chat history
 app.post('/agent/generate-omni', async (req, res) => {
   try {
     const { history } = req.body;
-    const systemPrompt = `You are a professional customer support agent for a bank. Write a helpful, empathetic reply to the customer. Keep it under 100 words. Sign off as "Support Team".`;
-    const userPrompt = `Here is the recent OmniChannel chat history:\n\n${history}\n\nDraft a concise reply addressing the customer's latest concerns.`;
-    const suggestion = await askGroq(systemPrompt, userPrompt);
-    res.json({ success: true, suggestion });
+    const ai = await askGroq(
+      `You are a professional customer support agent for a bank. Write a helpful, empathetic reply to the customer. Keep it under 100 words. Sign off as "Support Team".`,
+      `Here is the recent OmniChannel chat history:\n\n${history}\n\nDraft a concise reply addressing the customer's latest concerns.`,
+      300
+    );
+    res.json({ success: true, suggestion: ai.content });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// ── Start server ──────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\nGmail Agent API running on http://localhost:${PORT}`);
-  console.log(`\nAvailable endpoints:`);
-  console.log(`  GET  /agent/emails                        — unreplied emails + AI suggestions`);
-  console.log(`  GET  /agent/emails/:customerId/history    — full thread history`);
-  console.log(`  POST /agent/emails/:emailId/send-reply    — send employer edited reply`);
-  console.log(`  POST /agent/emails/:emailId/auto-reply    — AI auto reply one email`);
-  console.log(`  POST /agent/emails/auto-reply-all         — AI auto reply all emails`);
-  console.log(`  POST /agent/emails/suggest                — regenerate AI suggestion\n`);
+  console.log(`  GET  /agent/emails`);
+  console.log(`  GET  /agent/emails/:customerId/history`);
+  console.log(`  POST /agent/emails/:emailId/send-reply`);
+  console.log(`  POST /agent/emails/:emailId/auto-reply`);
+  console.log(`  POST /agent/emails/auto-reply-all`);
+  console.log(`  POST /agent/emails/suggest\n`);
 });

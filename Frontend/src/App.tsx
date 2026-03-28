@@ -20,8 +20,6 @@ import SocialComplaintsPage from "@/pages/dashboard/SocialComplaintsPage";
 import MyTasksPage from "@/pages/dashboard/MyTasksPage";
 import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import CampaignsPage from "@/pages/dashboard/CampaignsPage";
-import CompliancePage from "@/pages/dashboard/CompliancePage";
-import AIControlPage from "@/pages/dashboard/AIControlPage";
 import ReportsPage from "@/pages/dashboard/ReportsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
 
@@ -54,8 +52,6 @@ export default function App() {
                   <Route path="my-tasks" element={<MyTasksPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="campaigns" element={<CampaignsPage />} />
-                  <Route path="compliance" element={<CompliancePage />} />
-                  <Route path="ai-control" element={<AIControlPage />} />
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

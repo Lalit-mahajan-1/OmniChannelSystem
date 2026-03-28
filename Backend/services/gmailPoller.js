@@ -2,7 +2,8 @@ const cron = require('node-cron');
 const Email = require('../models/Email');
 const Customer = require('../models/Customer');
 const Employer = require('../models/Employer');
-const { fetchUnreadEmails, markAsRead } = require('./gmailService');
+const { fetchUnreadEmails, markAsRead, sendReply } = require('./gmailService');
+const { generateAIReply } = require('./aiAgentService');
 
 let isProcessing = false;
 let pollerStartedAt = Math.floor(Date.now() / 1000); // store current time in seconds
@@ -100,10 +101,64 @@ const processNewEmails = async () => {
       await markAsRead(email.gmailId);
 
       console.log(`Saved new email from ${email.fromEmail}`);
+
+      // ── AUTO-REPLY: check customer flag ──────────────────────────────
+      if (customer.autoReplyEmail) {
+        try {
+          // fetch short thread history for context
+          const threadHistory = await Email.find({ threadId: email.threadId, isArchived: false })
+            .sort({ emailDate: 1 })
+            .select('body direction')
+            .lean();
+
+          const aiReply = await generateAIReply(
+            email.body,
+            email.subject,
+            customer.name,
+            threadHistory,
+            customer.email
+          );
+
+          // find the saved email doc so we have the _id
+          const savedEmail = await Email.findOne({ gmailId: email.gmailId });
+
+          const gmailResponse = await sendReply(
+            email.fromEmail,
+            email.subject || 'Support Reply',
+            aiReply,
+            email.threadId
+          );
+
+          await Email.create({
+            employerId: employer._id,
+            customerId: customer._id,
+            gmailId: gmailResponse.id,
+            threadId: email.threadId,
+            from: process.env.GMAIL_ADDRESS,
+            fromEmail: process.env.GMAIL_ADDRESS,
+            to: email.fromEmail,
+            subject: email.subject?.startsWith('Re:') ? email.subject : `Re: ${email.subject || 'Support Reply'}`,
+            rawBody: aiReply,
+            body: aiReply,
+            direction: 'outbound',
+            status: 'replied',
+            emailDate: new Date(),
+          });
+
+          if (savedEmail) {
+            await Email.findByIdAndUpdate(savedEmail._id, { status: 'replied' });
+          }
+
+          console.log(`[Auto-Reply Email] Sent to ${email.fromEmail}: ${aiReply.slice(0, 60)}...`);
+        } catch (autoErr) {
+          console.error(`[Auto-Reply Email] Failed for ${email.fromEmail}:`, autoErr.message);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────
     } catch (err) {
       console.error(`Failed processing email ${email.gmailId}:`, err.message);
     }
   }
 };
 
-module.exports = { startGmailPoller, processNewEmails };
+module.exports = { startGmailPoller, processNewEmails };

@@ -2,20 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search,
-  RefreshCw,
-  AlertTriangle,
-  Loader2,
-  AlertCircle,
-  CheckCircle,
-  MessageSquare,
-  UserPlus,
-  Edit3,
-  Trash2,
-  Smartphone,
-  BarChart3,
-  TrendingUp,
-  Info,
+  Search, RefreshCw, AlertTriangle, Loader2, AlertCircle, CheckCircle, MessageSquare, UserPlus, Edit3, Trash2, Smartphone, BarChart3, TrendingUp, Info, Zap, X
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -249,7 +236,6 @@ export default function SocialComplaintsPage() {
     e.preventDefault();
     setPage(1);
 
-    // fetch immediately with page reset behavior
     setTimeout(() => {
       fetchComplaints();
     }, 0);
@@ -329,7 +315,7 @@ export default function SocialComplaintsPage() {
       }
 
       if (type === "assign") {
-        if (!input1?.trim()) throw new Error("Employer ID is required");
+        if (!input1?.trim()) throw new Error("Employee ID is required");
         await axios.patch(
           `${BASE}/social/complaints/${id}/assign`,
           { assignedTo: input1.trim() },
@@ -425,575 +411,375 @@ export default function SocialComplaintsPage() {
     openModal("delete", id, "Archive Complaint", "Are you sure you want to archive this complaint?");
   };
 
-  const getPriorityColor = (p: string) => {
-    if (p === "critical" || p === "high") return "bg-red-500/10 text-red-400 border-red-500/20";
-    if (p === "medium") return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
-    return "bg-green-500/10 text-green-400 border-green-500/20";
+  // UI Helpers
+  const getSeverityStyle = (priority: string) => {
+    if (priority === 'critical') return { background: 'linear-gradient(180deg,#EF4444,#7F1D1D)', boxShadow: '0 0 8px rgba(239,68,68,0.4)', textLabel: 'CRITICAL', labelBg: 'rgba(239,68,68,0.15)', labelText: '#FCA5A5', labelBorder: '1px solid rgba(239,68,68,0.3)' };
+    if (priority === 'high') return { background: 'linear-gradient(180deg,#EF4444,#DC2626)', boxShadow: 'none', textLabel: 'HIGH', labelBg: 'rgba(239,68,68,0.1)', labelText: '#FCA5A5', labelBorder: '1px solid rgba(239,68,68,0.2)' };
+    if (priority === 'medium') return { background: 'linear-gradient(180deg,#F59E0B,#D97706)', boxShadow: 'none', textLabel: 'MEDIUM', labelBg: 'rgba(245,158,11,0.12)', labelText: '#FCD34D', labelBorder: '1px solid rgba(245,158,11,0.25)' };
+    return { background: 'linear-gradient(180deg,#60A5FA,#3B82F6)', boxShadow: 'none', textLabel: 'LOW', labelBg: 'rgba(96,165,250,0.1)', labelText: '#93C5FD', labelBorder: '1px solid rgba(96,165,250,0.2)' };
   };
 
-  const getPlatformColor = (platform: string) => {
-    if (platform === "twitter") return "text-blue-400";
-    if (platform === "reddit") return "text-orange-500";
-    if (platform === "youtube") return "text-red-500";
-    return "text-muted-foreground";
+  const getStatusBadge = (status: string) => {
+    if (status === 'new') return <span className="badge-green">NEW</span>;
+    if (status === 'assigned') return <span className="badge-blue">ASSIGNED</span>;
+    return <span style={{ background: 'rgba(255,255,255,0.07)', color: '#94A3B8', padding: '3px 10px', borderRadius: '100px', fontSize: '11px', textTransform: 'uppercase' }}>{status.replace('_', ' ')}</span>;
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {stats && (
-        <div className="flex gap-4 p-4 border-b border-white/[0.06] bg-white/[0.01] shrink-0 overflow-x-auto scrollbar-none">
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <BarChart3 className="w-5 h-5 text-cyan-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Extracted</p>
-              <p className="text-xl font-bold">{stats.total}</p>
+    <div style={{ padding: 0, margin: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Page Header */}
+      <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="section-eyebrow">SOCIAL INTELLIGENCE</div>
+        <h1 className="page-title" style={{ margin: '0' }}>Complaint Box</h1>
+        
+        {stats && (
+          <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+              <BarChart3 style={{ width: '14px', height: '14px', color: '#60A5FA' }} />
+              <div>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.total}</span>
+                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>TOTAL EXTRACTED</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+              <AlertTriangle style={{ width: '14px', height: '14px', color: '#F59E0B' }} />
+              <div>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.complaints}</span>
+                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>COMPLAINTS</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+              <CheckCircle style={{ width: '14px', height: '14px', color: '#3ECF6A' }} />
+              <div>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.status.resolved + stats.status.closed}</span>
+                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>RESOLVED</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+              <UserPlus style={{ width: '14px', height: '14px', color: '#A78BFA' }} />
+              <div>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.unassigned}</span>
+                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>UNASSIGNED</span>
+              </div>
             </div>
           </div>
+        )}
+      </div>
 
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <AlertTriangle className="w-5 h-5 text-yellow-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Complaints</p>
-              <p className="text-xl font-bold">{stats.complaints}</p>
-            </div>
-          </div>
-
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Resolved</p>
-              <p className="text-xl font-bold">{stats.status.resolved + stats.status.closed}</p>
-            </div>
-          </div>
-
-          <div className="glass-card px-4 py-3 rounded-lg flex items-center gap-3 min-w-40 border border-white/[0.05]">
-            <UserPlus className="w-5 h-5 text-purple-400" />
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Unassigned</p>
-              <p className="text-xl font-bold">{stats.unassigned}</p>
-            </div>
-          </div>
+      {/* Filter Bar */}
+      <div style={{ padding: '16px 24px', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', flexWrap: 'wrap' }}>
+        <input
+          value={scrapeKeyword}
+          onChange={(e) => setScrapeKeyword(e.target.value)}
+          placeholder="Keyword to scrape..."
+          style={{ flex: 1, minWidth: '150px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '10px', padding: '10px 16px', color: '#F1F5F9', fontSize: '14px', outline: 'none' }}
+        />
+        <button onClick={handleScrape} disabled={scraping} className="btn-primary-db" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {scraping ? <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} /> : <Zap style={{ width: '14px', height: '14px' }} />}
+          SCRAPE
+        </button>
+        {scrapeResult && <span style={{ fontSize: '12px', color: '#3ECF6A', marginLeft: '8px' }}>{scrapeResult}</span>}
+        
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <form onSubmit={handleSearch} style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: '#94A3B8' }} />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '10px', padding: '10px 14px 10px 36px', color: '#F1F5F9', fontSize: '13px', outline: 'none', width: '220px' }}
+            />
+          </form>
+          <select
+            value={platformFilter}
+            onChange={(e) => { setPage(1); setPlatformFilter(e.target.value); }}
+            style={{ background: '#181C22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#94A3B8', fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="">All Platforms</option>
+            <option value="twitter">Twitter</option>
+            <option value="reddit">Reddit</option>
+            <option value="youtube">YouTube</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
+            style={{ background: '#181C22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#94A3B8', fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="new">New</option>
+            <option value="pending">Pending</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
         </div>
-      )}
+      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-1/2 lg:w-2/5 border-r border-white/[0.06] flex flex-col shrink-0">
-          <div className="p-4 border-b border-white/[0.06] space-y-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                Social Complaints
-              </h1>
-              <span className="text-xs bg-white/[0.06] px-2 py-1 rounded-full text-muted-foreground border border-white/[0.08]">
-                {total} Found
-              </span>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={scrapeKeyword}
-                onChange={(e) => setScrapeKeyword(e.target.value)}
-                placeholder="Enter keyword e.g. HDFC Bank"
-                className="flex-1 px-3 py-2 bg-white/[0.02] border border-white/[0.06] rounded-lg text-sm focus:outline-none"
-              />
-              <button
-                onClick={handleScrape}
-                disabled={scraping}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-cyan-400 text-white px-4 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {scraping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                {scraping ? "Scanning..." : "Scrape"}
-              </button>
-            </div>
-
-            {scrapeResult && (
-              <p className="text-[11px] text-center text-cyan-300 font-medium px-2 py-1 bg-cyan-500/10 rounded">
-                {scrapeResult}
-              </p>
-            )}
-
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search content, author, keyword..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white/[0.02] border border-white/[0.06] rounded-lg text-sm focus:outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                className="px-3 py-2 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-lg text-sm transition-colors"
-              >
-                Search
-              </button>
-            </form>
-
-            <div className="flex gap-2">
-              <select
-                value={platformFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setPlatformFilter(e.target.value);
+      {/* Main 2-Col Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', flex: 1, overflow: 'hidden' }}>
+        
+        {/* Complaints List */}
+        <div className="scrollbar-thin" style={{ borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', padding: '16px 24px' }}>
+          {loading && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100px', color: '#94A3B8', gap: '8px' }}><Loader2 style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} /> Loading...</div>}
+          {error && !loading && <div style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</div>}
+          {!loading && !error && complaints.length === 0 && <div style={{ color: '#94A3B8', textAlign: 'center', padding: '40px' }}>No complaints found.</div>}
+          
+          {!loading && !error && complaints.map((c, i) => {
+            const sevStyle = getSeverityStyle(c.priority);
+            const isSelected = selected?._id === c._id;
+            return (
+              <motion.div
+                key={c._id}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }}
+                onClick={() => fetchComplaintDetails(c._id)}
+                style={{
+                  background: isSelected ? 'rgba(62,207,106,0.04)' : 'rgba(255,255,255,0.03)',
+                  border: '1px solid',
+                  borderColor: isSelected ? 'rgba(62,207,106,0.2)' : 'rgba(255,255,255,0.07)',
+                  borderRadius: '12px',
+                  padding: '16px 18px',
+                  marginBottom: '12px',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.2s'
                 }}
-                className="flex-1 bg-white/[0.02] border border-white/[0.06] rounded-lg text-xs px-2 py-1.5 focus:outline-none"
-              >
-                <option value="">All Platforms</option>
-                <option value="twitter">Twitter</option>
-                <option value="reddit">Reddit</option>
-                <option value="youtube">YouTube</option>
-              </select>
-
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setStatusFilter(e.target.value);
+                onMouseOver={(e) => {
+                  if(!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
                 }}
-                className="flex-1 bg-white/[0.02] border border-white/[0.06] rounded-lg text-xs px-2 py-1.5 focus:outline-none"
+                onMouseOut={(e) => {
+                  if(!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                  e.currentTarget.style.transform = 'none';
+                }}
               >
-                <option value="">All Statuses</option>
-                <option value="new">New</option>
-                <option value="pending">Pending</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
-            {loading && (
-              <div className="flex flex-col items-center justify-center h-32 gap-3 text-muted-foreground">
-                <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
-                <span className="text-xs">Loading complaints…</span>
-              </div>
-            )}
-
-            {error && !loading && (
-              <div className="flex flex-col items-center justify-center h-32 gap-2 px-4 text-center">
-                <AlertCircle className="w-6 h-6 text-red-400/70" />
-                <p className="text-xs text-muted-foreground">{error}</p>
-              </div>
-            )}
-
-            {!loading && !error && complaints.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-32 gap-2 text-center text-muted-foreground">
-                <Info className="w-6 h-6 opacity-30" />
-                <p className="text-xs">No complaints found.</p>
-              </div>
-            )}
-
-            {!loading &&
-              !error &&
-              complaints.map((c, i) => (
-                <motion.button
-                  key={c._id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.02 }}
-                  onClick={() => fetchComplaintDetails(c._id)}
-                  className={`w-full text-left p-4 border-b border-white/[0.04] transition-all duration-200 ${
-                    selected?._id === c._id
-                      ? "bg-white/[0.06] border-l-2 border-l-cyan-400"
-                      : "hover:bg-white/[0.03] border-l-2 border-l-transparent"
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <Smartphone className={`w-3.5 h-3.5 ${getPlatformColor(c.platform)}`} />
-                      <span className="text-xs font-semibold capitalize text-foreground/80">
-                        {c.platform}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{timeAgo(c.scrapedAt)}</span>
+                {/* Severity Bar */}
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: sevStyle.background, boxShadow: sevStyle.boxShadow }} />
+                
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', color: '#475569', textTransform: 'uppercase' }}>
+                    <Smartphone style={{ width: '12px', height: '12px' }} /> {c.platform}
                   </div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '10px', color: '#475569' }}>{timeAgo(c.scrapedAt)}</div>
+                </div>
 
-                  <p className="text-sm line-clamp-2 text-foreground/90 mb-2">{c.content}</p>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9', lineHeight: 1.4, marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {c.content}
+                </div>
 
-                  <div className="text-[10px] text-muted-foreground mb-3">
-                    {c.author ? `@${c.author}` : "Unknown author"} {c.keyword ? `• ${c.keyword}` : ""}
-                  </div>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '12px', color: '#475569', marginBottom: '12px' }}>
+                  @{c.author} • {c.keyword}
+                </div>
 
-                  <div className="flex items-center justify-between text-xs">
-                    <span className={`px-2 py-0.5 rounded-full border ${getPriorityColor(c.priority)} capitalize text-[10px]`}>
-                      {c.priority}
-                    </span>
-
-                    <span
-                      className={`capitalize text-[10px] font-medium px-2 py-0.5 rounded border border-white/[0.05] ${
-                        c.complaintStatus === "resolved" || c.complaintStatus === "closed"
-                          ? "text-green-400 bg-green-400/5"
-                          : c.complaintStatus === "in_progress"
-                          ? "text-cyan-400 bg-cyan-400/5"
-                          : "text-yellow-400 bg-yellow-400/5"
-                      }`}
-                    >
-                      {c.complaintStatus.replace("_", " ")}
-                    </span>
-                  </div>
-                </motion.button>
-              ))}
-          </div>
-
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {getStatusBadge(c.complaintStatus)}
+                  <span style={{ background: sevStyle.labelBg, border: sevStyle.labelBorder, color: sevStyle.labelText, borderRadius: '100px', padding: '3px 10px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    {sevStyle.textLabel}
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
+          
           {!loading && !error && totalPages > 1 && (
-            <div className="p-3 border-t border-white/[0.06] flex items-center justify-between text-sm bg-black/20">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="px-3 py-1 rounded bg-white/[0.04] border border-white/[0.08] disabled:opacity-30 hover:bg-white/[0.08] text-xs"
-              >
-                Prev
-              </button>
-
-              <span className="text-xs text-muted-foreground font-mono bg-white/[0.02] px-2 py-1 rounded">
-                Pg {page} / {totalPages}
-              </span>
-
-              <button
-                disabled={page === totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1 rounded bg-white/[0.04] border border-white/[0.08] disabled:opacity-30 hover:bg-white/[0.08] text-xs"
-              >
-                Next
-              </button>
-            </div>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="btn-ghost-db" style={{ padding: '6px 12px', fontSize: '12px' }}>Prev</button>
+                <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>Pg {page} / {totalPages}</span>
+                <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)} className="btn-ghost-db" style={{ padding: '6px 12px', fontSize: '12px' }}>Next</button>
+             </div>
           )}
         </div>
 
-        <div className="flex-1 flex flex-col bg-background/30 backdrop-blur-md relative overflow-hidden">
-          {detailsLoading && (
-            <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-            </div>
-          )}
-
-          {selected ? (
-            <div className="p-8 h-full overflow-y-auto scrollbar-thin">
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/[0.06]">
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight">Complaint Details</h2>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ID: <span className="font-mono">{selected._id}</span>
-                  </p>
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                  <select
-                    value={selected.complaintStatus}
-                    onChange={(e) => updateStatus(selected._id, e.target.value)}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-cyan-400/30 text-cyan-400 bg-cyan-400/5"
-                  >
-                    <option value="new">New</option>
-                    <option value="pending">Pending</option>
-                    <option value="assigned">Assigned</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </select>
-
-                  {selected.complaintStatus !== "resolved" && selected.complaintStatus !== "closed" && (
-                    <button
-                      onClick={() => setResolved(selected._id)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-green-400/30 text-green-400 hover:bg-green-400/10 flex items-center gap-1 font-medium bg-green-400/5"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Resolve
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => deleteComplaint(selected._id)}
-                    className="px-3 py-1.5 text-xs rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 bg-red-400/5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 inline mr-1" />
-                    Archive
-                  </button>
-                </div>
+        {/* Selected Complaint Detail Panel */}
+        <div style={{ background: '#0D1117', overflowY: 'auto' }} className="scrollbar-thin">
+          {!selected ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '40px', textAlign: 'center' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', marginBottom: '16px' }}>
+                <AlertTriangle style={{ width: '28px', height: '28px', color: '#475569' }} />
               </div>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="glass-card p-4 rounded-xl border border-white/[0.04]">
-                    <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Platform</p>
-                    <div className="flex items-center gap-2">
-                      <Smartphone className={`w-4 h-4 ${getPlatformColor(selected.platform)}`} />
-                      <p className="font-semibold capitalize">{selected.platform}</p>
-                    </div>
-                  </div>
-
-                  <div className="glass-card p-4 rounded-xl border border-white/[0.04]">
-                    <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Author</p>
-                    <p className="font-medium truncate">{selected.author || "Anonymous"}</p>
-                  </div>
-
-                  <div className="glass-card p-4 rounded-xl border border-white/[0.04]">
-                    <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Sentiment</p>
-                    <p
-                      className={`font-medium capitalize ${
-                        selected.sentiment === "positive"
-                          ? "text-green-400"
-                          : selected.sentiment === "negative"
-                          ? "text-red-400"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {selected.sentiment}
-                    </p>
-                  </div>
-
-                  <div className="glass-card p-4 rounded-xl border border-white/[0.04]">
-                    <p className="text-xs text-muted-foreground mb-1 uppercase tracking-widest">Priority</p>
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getPriorityColor(selected.priority)}`}>
-                      {selected.priority}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="glass-card p-5 rounded-xl border border-white/[0.04]">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-cyan-400" />
-                    Content
-                  </h3>
-
-                  <div className="p-4 rounded-lg bg-background/50 border border-white/[0.02] text-sm leading-relaxed whitespace-pre-wrap font-medium">
-                    {selected.content}
-                  </div>
-
-                  {selected.postUrl && (
-                    <div className="mt-4 flex justify-end">
-                      <a
-                        href={selected.postUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-purple-400 hover:text-cyan-400 hover:underline font-semibold flex items-center gap-1"
-                      >
-                        View Original Source
-                        <TrendingUp className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {(selected.resolvedBy || selected.resolutionNote) && (
-                  <div className="p-4 rounded-xl border border-green-500/20 bg-green-500/5">
-                    <h4 className="text-xs font-semibold text-green-400 flex items-center gap-1.5 mb-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Resolution Details
-                    </h4>
-
-                    {selected.resolvedBy && (
-                      <p className="text-xs text-foreground/80 mb-1">
-                        Resolved by:{" "}
-                        <span className="font-semibold">
-                          {selected.resolvedBy.name || selected.resolvedBy.email}
-                        </span>
-                      </p>
-                    )}
-
-                    {selected.resolutionNote && (
-                      <p className="text-xs text-muted-foreground bg-white/[0.02] p-2 rounded mt-2 border border-white/[0.04]">
-                        {selected.resolutionNote}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="glass-card p-5 rounded-xl border border-white/[0.04] flex flex-col">
-                    <h4 className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-2 uppercase tracking-wide">
-                      <UserPlus className="w-4 h-4 text-purple-400" />
-                      Assignment & Customer
-                    </h4>
-
-                    <div className="space-y-4 flex-1">
-                      <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground uppercase">Assigned Employee</span>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => assignToMe(selected._id)}
-                              className="text-[10px] text-purple-400 hover:underline"
-                            >
-                              Self Assign
-                            </button>
-                            <button
-                              onClick={() => assignEmployee(selected._id)}
-                              className="text-[10px] text-cyan-400 hover:underline"
-                            >
-                              Change
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm font-medium">
-                          {selected.assignedTo ? (
-                            selected.assignedTo.name || selected.assignedTo.email
-                          ) : (
-                            <span className="text-muted-foreground italic text-xs">Unassigned</span>
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground uppercase">Linked Customer</span>
-                          <button
-                            onClick={() => linkCustomer(selected._id)}
-                            className="text-[10px] text-purple-400 hover:underline"
-                          >
-                            Change
-                          </button>
-                        </div>
-                        <p className="text-sm font-medium">
-                          {selected.customerId ? (
-                            selected.customerId.name || selected.customerId.email
-                          ) : (
-                            <span className="text-muted-foreground italic text-xs">No customer linked</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="glass-card p-5 rounded-xl border border-white/[0.04] flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wide">
-                        <Edit3 className="w-4 h-4 text-yellow-400" />
-                        Internal Notes
-                      </h4>
-                      <button
-                        onClick={() => addNote(selected._id)}
-                        className="text-[10px] px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 border border-yellow-500/20 font-medium"
-                      >
-                        + Add Note
-                      </button>
-                    </div>
-
-                    <div className="space-y-2 flex-1 overflow-y-auto max-h-[160px] scrollbar-thin pr-2">
-                      {selected.internalNotes && selected.internalNotes.length > 0 ? (
-                        selected.internalNotes.map((item, idx) => (
-                          <div key={idx} className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                            <p className="text-xs text-foreground/90 leading-relaxed mb-1.5">{item.note}</p>
-                            <div className="flex justify-between items-center text-[9px] text-muted-foreground">
-                              <span>{item.addedBy ? item.addedBy.name || item.addedBy.email : "System / Direct"}</span>
-                              <span>
-                                {new Date(item.addedAt).toLocaleString(undefined, {
-                                  dateStyle: "short",
-                                  timeStyle: "short",
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="h-full flex items-center justify-center p-4">
-                          <p className="text-xs text-muted-foreground italic text-center">
-                            No internal notes added yet.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '16px', color: '#94A3B8' }}>Select a Complaint</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: '#475569', marginTop: '6px', maxWidth: '240px' }}>
+                Select a social complaint from the list to view full details and take action.
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8 relative">
-              <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shadow-lg relative z-10">
-                <BarChart3 className="w-8 h-8 text-cyan-400/50" />
-              </div>
-              <div className="relative z-10">
-                <h3 className="text-lg font-semibold text-foreground/90 mb-1">Select a Complaint</h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Choose any complaint from the list to view details and take action.
-                </p>
-              </div>
+            <div style={{ padding: '24px' }}>
+               {detailsLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94A3B8' }}><Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }}/> Loading details...</div>
+               ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+                      <div>
+                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '20px', color: '#F1F5F9', marginBottom: '4px' }}>Complaint Details</h2>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569' }}>ID: {selected._id}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <select
+                          value={selected.complaintStatus}
+                          onChange={(e) => updateStatus(selected._id, e.target.value)}
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px', color: '#F1F5F9', fontSize: '12px', outline: 'none' }}
+                        >
+                          <option value="new">New</option>
+                          <option value="pending">Pending</option>
+                          <option value="assigned">Assigned</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="closed">Closed</option>
+                        </select>
+                        <button onClick={() => deleteComplaint(selected._id)} style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)', padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Archive">
+                           <Trash2 style={{ width: '14px', height: '14px' }} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="glass-card-db" style={{ padding: '20px', marginBottom: '16px' }}>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                          <div>
+                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Platform</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9', textTransform: 'capitalize' }}>{selected.platform}</div>
+                          </div>
+                          <div>
+                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Author</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9' }}>@{selected.author}</div>
+                          </div>
+                          <div>
+                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Sentiment</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: selected.sentiment === 'negative' ? '#EF4444' : selected.sentiment === 'positive' ? '#3ECF6A' : '#F59E0B', textTransform: 'capitalize' }}>{selected.sentiment}</div>
+                          </div>
+                          <div>
+                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Priority</div>
+                             <span style={{ fontSize: '11px', fontWeight: 600, color: getSeverityStyle(selected.priority).labelText }}>{selected.priority.toUpperCase()}</span>
+                          </div>
+                       </div>
+                       
+                       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '16px' }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: '#94A3B8', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                            {selected.content}
+                          </div>
+                          {selected.postUrl && (
+                             <a href={selected.postUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12px', color: '#3ECF6A', fontWeight: 500 }}>
+                                View Original <TrendingUp style={{ width: '12px', height: '12px' }} />
+                             </a>
+                          )}
+                       </div>
+                    </div>
+
+                    <div className="glass-card-db" style={{ padding: '20px', marginBottom: '16px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: '#F1F5F9' }}>
+                             <UserPlus style={{ width: '14px', height: '14px', color: '#60A5FA' }} /> Assignment
+                          </div>
+                       </div>
+                       <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span className="section-eyebrow" style={{ color: '#475569' }}>Employee</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                               <span onClick={() => assignToMe(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#3ECF6A' }}>Self-Assign</span>
+                               <span onClick={() => assignEmployee(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#60A5FA' }}>Change</span>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '13px', color: selected.assignedTo ? '#F1F5F9' : '#475569' }}>
+                            {selected.assignedTo ? (selected.assignedTo.name || selected.assignedTo.email) : 'Unassigned'}
+                          </div>
+                       </div>
+                       <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span className="section-eyebrow" style={{ color: '#475569' }}>Customer</span>
+                            <span onClick={() => linkCustomer(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#60A5FA' }}>Change</span>
+                          </div>
+                          <div style={{ fontSize: '13px', color: selected.customerId ? '#F1F5F9' : '#475569' }}>
+                            {selected.customerId ? (selected.customerId.name || selected.customerId.email) : 'Not Linked'}
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="glass-card-db" style={{ padding: '20px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: '#F1F5F9' }}>
+                             <Edit3 style={{ width: '14px', height: '14px', color: '#F59E0B' }} /> Notes & Resolution
+                          </div>
+                          <button onClick={() => addNote(selected._id)} className="btn-ghost-db" style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', minWidth: 0 }}>Add Note</button>
+                       </div>
+                       
+                       {(selected.complaintStatus !== 'resolved' && selected.complaintStatus !== 'closed') && (
+                          <button onClick={() => setResolved(selected._id)} style={{ width: '100%', background: 'rgba(62,207,106,0.1)', border: '1px solid rgba(62,207,106,0.25)', color: '#3ECF6A', borderRadius: '8px', padding: '10px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', marginBottom: '16px' }}>
+                            <CheckCircle style={{ width: '14px', height: '14px' }} /> MARK AS RESOLVED
+                          </button>
+                       )}
+
+                       {selected.resolvedBy && (
+                          <div style={{ background: 'rgba(62,207,106,0.05)', border: '1px solid rgba(62,207,106,0.2)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                             <div style={{ fontSize: '11px', color: '#3ECF6A', fontWeight: 600, marginBottom: '4px' }}>Resolved By: {selected.resolvedBy.name || selected.resolvedBy.email}</div>
+                             {selected.resolutionNote && <div style={{ fontSize: '12px', color: '#94A3B8' }}>Note: {selected.resolutionNote}</div>}
+                          </div>
+                       )}
+
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {selected.internalNotes && selected.internalNotes.map((note, idx) => (
+                             <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div style={{ fontSize: '12px', color: '#F1F5F9', marginBottom: '4px' }}>{note.note}</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569' }}>
+                                   <span>{note.addedBy ? (note.addedBy.name || note.addedBy.email) : 'System'}</span>
+                                   <span>{new Date(note.addedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                </div>
+                             </div>
+                          ))}
+                          {(!selected.internalNotes || selected.internalNotes.length === 0) && (
+                             <div style={{ fontSize: '12px', color: '#475569', textAlign: 'center', padding: '10px 0' }}>No internal notes.</div>
+                          )}
+                       </div>
+                    </div>
+
+                  </>
+               )}
             </div>
           )}
         </div>
       </div>
 
+      {/* Modals remain structurally similar but themed */}
       <AnimatePresence>
         {actionModal.show && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#0a0a0a] border border-white/[0.1] rounded-xl p-6 w-full max-w-sm shadow-2xl space-y-4"
-            >
-              <h3 className="text-lg font-bold text-foreground">{actionModal.title}</h3>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(10,11,13,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} style={{ background: '#111318', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+               
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '16px', color: '#F1F5F9' }}>{actionModal.title}</h3>
+                  <X style={{ width: '16px', height: '16px', color: '#475569', cursor: 'pointer' }} onClick={closeModal} />
+               </div>
 
-              {actionModal.message && (
-                <p className="text-sm text-muted-foreground bg-white/[0.02] p-3 rounded-lg border border-white/[0.05]">
-                  {actionModal.message}
-                </p>
-              )}
+               {actionModal.message && (
+                  <p style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px' }}>{actionModal.message}</p>
+               )}
 
-              {actionModal.type !== "delete" && actionModal.type !== "error" && (
-                <div className="space-y-3">
-                  {actionModal.placeholder1 && (
-                    <input
-                      type="text"
-                      placeholder={actionModal.placeholder1}
-                      value={actionModal.input1 || ""}
-                      onChange={(e) =>
-                        setActionModal((prev) => ({ ...prev, input1: e.target.value }))
-                      }
-                      className="w-full bg-white/[0.02] border border-white/[0.1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400"
-                    />
+               {actionModal.type !== "delete" && actionModal.type !== "error" && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                     {actionModal.placeholder1 && (
+                        <input value={actionModal.input1 || ""} onChange={(e) => setActionModal(p => ({...p, input1: e.target.value}))} placeholder={actionModal.placeholder1} className="input-db" style={{ width: '100%', boxSizing: 'border-box' }} />
+                     )}
+                     {actionModal.placeholder2 && (
+                        <input value={actionModal.input2 || ""} onChange={(e) => setActionModal(p => ({...p, input2: e.target.value}))} placeholder={actionModal.placeholder2} className="input-db" style={{ width: '100%', boxSizing: 'border-box' }} />
+                     )}
+                  </div>
+               )}
+
+               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={closeModal} className="btn-ghost-db" style={{ padding: '8px 16px', fontSize: '12px' }}>{actionModal.type === 'error' ? 'Close' : 'Cancel'}</button>
+                  {actionModal.type !== 'error' && (
+                     <button onClick={handleModalSubmit} disabled={actionModal.loading} className="btn-primary-db" style={{ padding: '8px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', ...(actionModal.type === 'delete' ? { background: 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white' } : {}) }}>
+                        {actionModal.loading && <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                        {actionModal.type === 'delete' ? 'Confirm Archive' : 'Submit'}
+                     </button>
                   )}
+               </div>
 
-                  {actionModal.placeholder2 && (
-                    <input
-                      type="text"
-                      placeholder={actionModal.placeholder2}
-                      value={actionModal.input2 || ""}
-                      onChange={(e) =>
-                        setActionModal((prev) => ({ ...prev, input2: e.target.value }))
-                      }
-                      className="w-full bg-white/[0.02] border border-white/[0.1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400"
-                    />
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 text-xs rounded-lg border border-white/[0.1] hover:bg-white/[0.05]"
-                >
-                  {actionModal.type === "error" ? "Close" : "Cancel"}
-                </button>
-
-                {actionModal.type !== "error" && (
-                  <button
-                    onClick={handleModalSubmit}
-                    disabled={actionModal.loading}
-                    className={`px-4 py-2 text-xs rounded-lg font-semibold flex items-center gap-2 ${
-                      actionModal.type === "delete"
-                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30"
-                        : "bg-cyan-400 text-black hover:opacity-90"
-                    }`}
-                  >
-                    {actionModal.loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    {actionModal.type === "delete" ? "Confirm Archive" : "Submit"}
-                  </button>
-                )}
-              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }

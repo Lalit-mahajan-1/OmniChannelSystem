@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+/* Dashboard Dark Soft Glass Redesign */
+@import url('./styles/dashboard.css');
+@import url('./styles/dashboard-animations.css');
 
 @layer base {
   :root {
@@ -52,6 +57,24 @@
     --neon-yellow: 48 97% 53%;
     --glass-bg: 230 40% 8%;
     --glass-border: 230 30% 20%;
+    
+    /* ConvoSphere Soft Editorial Design System Tokens */
+    --color-canvas-bg: #EDEEF0;
+    --color-card-bg: #FFFFFF;
+    --color-card-bg-alt: #F7F8FA;
+    --color-text-primary: #0D0D0D;
+    --color-text-secondary: #555860;
+    --color-text-muted: #9EA3AE;
+    --color-accent-green: #3ECF6A;
+    --color-accent-green-light: #B8F5CC;
+    --color-accent-mint: #D4FAE6;
+    --color-accent-gradient-start: #A8F5C2;
+    --color-accent-gradient-end: #C3EEF8;
+    --color-highlight-pill-bg: #D6F7E5;
+    --color-highlight-pill-text: #1A7A40;
+    --color-border-subtle: #E4E6EB;
+    
+    /* Reveal configuration */
   }
 }
 
@@ -166,8 +189,32 @@
   }
 }
 
+
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
+
+/* Animations & Keyframes */
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* Scroll Reveal States */
+.reveal { 
+  opacity:0; 
+  transform:translateY(32px); 
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1); 
+}
+.reveal.revealed { opacity:1; transform:translateY(0); }
+.reveal[data-delay='100']{transition-delay:0.1s}
+.reveal[data-delay='200']{transition-delay:0.2s}
+.reveal[data-delay='300']{transition-delay:0.3s}
+.reveal[data-delay='400']{transition-delay:0.4s}
+
+

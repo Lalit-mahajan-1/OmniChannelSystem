@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -7,30 +7,30 @@ const CustomerSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      required: [true, "Name is required"],
       trim: true,
-      maxlength: [100, 'Name cannot exceed 100 characters'],
+      maxlength: [100, "Name cannot exceed 100 characters"],
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
       validate: {
         validator: (v) => emailRegex.test(v),
-        message: 'Please provide a valid email address',
+        message: "Please provide a valid email address",
       },
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
       select: false,
     },
     role: {
       type: String,
-      default: 'customer',
+      default: "customer",
       immutable: true,
     },
     phone: {
@@ -38,15 +38,23 @@ const CustomerSchema = new mongoose.Schema(
       trim: true,
       validate: {
         validator: (v) => !v || /^\+?[1-9]\d{6,14}$/.test(v),
-        message: 'Please provide a valid phone number',
+        message: "Please provide a valid phone number",
       },
     },
     dob: {
       type: Date,
       validate: {
         validator: (v) => !v || v < new Date(),
-        message: 'Date of birth must be in the past',
+        message: "Date of birth must be in the past",
       },
+    },
+    autoReplyEmail: {
+      type: Boolean,
+      default: false,
+    },
+    autoReplyWhatsapp: {
+      type: Boolean,
+      default: false,
     },
     channel_ids: {
       whatsapp: { type: String, sparse: true },
@@ -55,22 +63,22 @@ const CustomerSchema = new mongoose.Schema(
     },
     language: {
       type: String,
-      default: 'en',
+      default: "en",
       enum: {
-        values: ['en', 'hi', 'ta', 'te', 'kn', 'ml', 'mr', 'bn', 'gu', 'pa'],
-        message: 'Language {VALUE} is not supported',
+        values: ["en", "hi", "ta", "te", "kn", "ml", "mr", "bn", "gu", "pa"],
+        message: "Language {VALUE} is not supported",
       },
     },
     timezone: {
       type: String,
-      default: 'Asia/Kolkata',
+      default: "Asia/Kolkata",
     },
     isActive: {
       type: Boolean,
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ---- Indexes for channel lookups ----
@@ -78,14 +86,14 @@ CustomerSchema.index({ phone: 1 }, { sparse: true });
 CustomerSchema.index({ isActive: 1 });
 
 // ---- Hash password before save ----
-CustomerSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+CustomerSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
 // ---- Hash password before findOneAndUpdate ----
-CustomerSchema.pre('findOneAndUpdate', async function (next) {
+CustomerSchema.pre("findOneAndUpdate", async function (next) {
   const update = this.getUpdate();
 
   // Handle both direct and $set wrapped password
@@ -113,4 +121,4 @@ CustomerSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('Customer', CustomerSchema);
+module.exports = mongoose.model("Customer", CustomerSchema);

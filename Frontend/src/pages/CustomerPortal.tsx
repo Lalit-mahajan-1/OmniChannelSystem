@@ -12,21 +12,21 @@ export default function CustomerPortal() {
   };
 
   return (
-    <div className="gradient-bg min-h-screen flex flex-col items-center justify-center p-6 gap-6">
-      <div className="glass-card p-8 w-full max-w-sm text-center space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-cyan to-neon-purple flex items-center justify-center mx-auto">
-          <User className="w-8 h-8 text-background" />
+    <div className="bg-[#0a0a0a] min-h-screen flex flex-col items-center justify-center p-6 gap-6">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-8 w-full max-w-sm text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center mx-auto">
+          <User className="w-8 h-8 text-black" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">{user?.name}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{user?.email}</p>
-          <span className="inline-block mt-2 px-3 py-1 rounded-full text-xs bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20 capitalize">
+          <h1 className="text-xl font-bold text-white">{user?.name}</h1>
+          <p className="text-sm text-white/60 mt-1">{user?.email}</p>
+          <span className="inline-block mt-2 px-3 py-1 rounded-full text-xs bg-white/[0.04] text-white border border-white/[0.08] capitalize">
             {user?.role}
           </span>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 mx-auto text-sm text-muted-foreground hover:text-foreground transition-colors mt-2"
+          className="flex items-center gap-2 mx-auto text-sm text-white/60 hover:text-white transition-colors mt-2"
         >
           <LogOut className="w-4 h-4" /> Sign out
         </button>

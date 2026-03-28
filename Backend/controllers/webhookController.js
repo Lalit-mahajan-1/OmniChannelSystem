@@ -7,6 +7,7 @@ const {
   parseStatusUpdate,
   sendTextMessage,
 } = require('../services/whatsappService');
+const { generateAIReply } = require('../services/aiAgentService');
 
 const verifyWebhook = (req, res) => {
   const mode = req.query['hub.mode'];
@@ -143,10 +144,64 @@ const receiveMessage = async (req, res) => {
     });
 
     console.log('Message saved to MongoDB:', savedMessage._id.toString());
+
+    // ── WHATSAPP AUTO-REPLY: check customer flag ──────────────────────────
+    if (customer.autoReplyWhatsapp) {
+      try {
+        // fetch last 10 messages for context
+        const msgHistory = await Message.find({
+          customerId: customer._id,
+          employerId: employer._id,
+        })
+          .sort({ whatsappTimestamp: -1 })
+          .limit(10)
+          .select('body direction')
+          .lean();
+
+        const history = msgHistory.reverse(); // oldest first for context
+
+        const aiReply = await generateAIReply(
+          parsed.body,
+          'WhatsApp',
+          customer.name,
+          history,
+          customer.phone || customer.email
+        );
+
+        const customerPhone = customer.channel_ids?.whatsapp || customer.phone?.replace('+', '');
+        const phoneNumberId = employer.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+        if (customerPhone && phoneNumberId) {
+          const result = await sendTextMessage(customerPhone, aiReply, phoneNumberId);
+
+          await Message.create({
+            employerId: employer._id,
+            customerId: customer._id,
+            from: phoneNumberId,
+            to: customerPhone,
+            messageId: result.messages?.[0]?.id || `auto_${Date.now()}`,
+            type: 'text',
+            body: aiReply,
+            direction: 'outbound',
+            status: 'sent',
+            whatsappTimestamp: new Date(),
+            rawPayload: result,
+          });
+
+          console.log(`[Auto-Reply WA] Sent to ${customer.name} (${customerPhone}): ${aiReply.slice(0, 60)}...`);
+        } else {
+          console.warn('[Auto-Reply WA] Skipped — no phone or phoneNumberId configured');
+        }
+      } catch (autoErr) {
+        console.error('[Auto-Reply WA] Failed:', autoErr.message);
+      }
+    }
+    // ───────────────────────────────────────────────────────────────
   } catch (err) {
     console.error('Webhook processing error:', err);
   }
 };
+
 
 // POST /api/webhook/messages/send
 const sendMessage = async (req, res) => {

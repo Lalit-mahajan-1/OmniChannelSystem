@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import {
-  Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
-  Clock, MessageSquare, Mail, Phone, Smartphone, Loader2, AlertCircle,
-} from "lucide-react";
+import { Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, MessageSquare, Mail, Phone, Smartphone, Loader2, AlertCircle, Users } from "lucide-react";
 
 const BASE = import.meta.env.VITE_API_URL;
 
@@ -60,138 +57,159 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Title + Search */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Customers</h1>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+    <div style={{ padding: 0, margin: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Page Header */}
+      <div style={{ padding: '32px 32px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div className="section-eyebrow">CUSTOMER INTELLIGENCE</div>
+          <h1 className="page-title" style={{ margin: 0 }}>Customers</h1>
+        </div>
+        <div style={{ position: 'relative' }}>
+          <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: '#94A3B8' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm focus:outline-none focus:border-neon-cyan/50 transition-colors"
+            style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '10px', padding: '10px 14px 10px 38px', fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '14px', color: '#F1F5F9', width: '240px', outline: 'none' }}
             placeholder="Search customers…"
           />
         </div>
-      </motion.div>
+      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stats Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '16px', padding: '24px 32px' }}>
         {[
-          { label: "Total Customers", value: customers.length,                           icon: CheckCircle,   change: "live" },
-          { label: "At Risk",         value: 0,                                           icon: AlertTriangle, change: "—", negative: true },
-          { label: "Avg. Response",   value: "—",                                         icon: Clock,         change: "—" },
-          { label: "Satisfaction",    value: "—",                                         icon: TrendingUp,    change: "—" },
+          { label: "TOTAL CUSTOMERS", value: customers.length, icon: Users, accent: "green", showLive: true },
+          { label: "AT RISK", value: 0, icon: AlertTriangle, accent: "amber" },
+          { label: "AVG. RESPONSE", value: "—", icon: Clock, accent: "blue" },
+          { label: "SATISFACTION", value: "—", icon: CheckCircle, accent: "purple" },
         ].map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
-            className="glass-card p-4"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground">{stat.label}</span>
-              <stat.icon className="w-4 h-4 text-neon-cyan/60" />
+          <div key={stat.label} className="stat-card-db" style={{ padding: '24px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span className="section-eyebrow" style={{ color: '#475569', letterSpacing: '0.14em' }}>{stat.label}</span>
+              <stat.icon style={{ width: '18px', height: '18px', color: stat.accent === 'green' ? '#3ECF6A' : stat.accent === 'amber' ? '#F59E0B' : stat.accent === 'blue' ? '#60A5FA' : '#A78BFA' }} />
             </div>
-            <div className="text-2xl font-bold">{stat.value}</div>
-            <span className={`text-xs ${stat.negative ? "text-red-400" : "text-green-400"}`}>{stat.change}</span>
-          </motion.div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="stat-value" style={{ fontSize: '36px' }}>{stat.value}</div>
+              {stat.showLive && <div className="badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><div className="live-dot" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ADE80' }}/> LIVE</div>}
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Loading */}
+      {/* Loading & Error */}
       {loading && (
-        <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">Loading customers…</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '160px', gap: '8px', color: '#94A3B8' }}>
+          <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: '14px' }}>Loading customers…</span>
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
-        <div className="flex flex-col items-center justify-center h-40 gap-3">
-          <AlertCircle className="w-8 h-8 text-red-400/70" />
-          <p className="text-sm text-muted-foreground">{error}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '160px', gap: '12px' }}>
+          <AlertCircle style={{ width: '32px', height: '32px', color: 'rgba(239,68,68,0.7)' }} />
+          <p style={{ fontSize: '14px', color: '#94A3B8' }}>{error}</p>
         </div>
       )}
 
-      {/* Table */}
+      {/* Customers Table */}
       {!loading && !error && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card overflow-hidden">
-          {filtered.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-              {search ? `No customers matching "${search}"` : "No customers found."}
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/[0.06] text-xs text-muted-foreground">
-                  <th className="text-left p-4 font-medium">Customer</th>
-                  <th className="text-left p-4 font-medium">Phone</th>
-                  <th className="text-left p-4 font-medium">Language</th>
-                  <th className="text-left p-4 font-medium">Last Updated</th>
-                  <th className="text-left p-4 font-medium">Channels</th>
-                  <th className="text-left p-4 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c, i) => (
-                  <motion.tr
-                    key={c._id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 + i * 0.04 }}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors cursor-pointer"
-                  >
-                    {/* Name + Email */}
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center text-xs font-bold shrink-0">
-                          {initials(c.name)}
+        <div style={{ padding: '0 32px 32px', flex: 1 }}>
+          <div className="glass-card-db" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden' }}>
+            {filtered.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '128px', fontSize: '14px', color: '#475569' }}>
+                {search ? `No customers matching "${search}"` : "No customers found."}
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <tr>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Customer</th>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Phone</th>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Language</th>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Last Updated</th>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Channels</th>
+                    <th style={{ padding: '12px 20px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569', textAlign: 'left' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c, i) => (
+                    <motion.tr
+                      key={c._id}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 * i }}
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.15s', cursor: 'pointer' }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {/* Customer Info */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg,rgba(62,207,106,0.2),rgba(62,207,106,0.4))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: '#3ECF6A', flexShrink: 0 }}>
+                            {initials(c.name)}
+                          </div>
+                          <div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9' }}>{c.name}</div>
+                            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '12px', color: '#475569', marginTop: '1px' }}>{c.email}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-medium">{c.name}</div>
-                          <div className="text-xs text-muted-foreground">{c.email}</div>
+                      </td>
+
+                      {/* Phone */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '13px', color: '#94A3B8' }}>{c.phone || "—"}</span>
+                      </td>
+
+                      {/* Language */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        <span style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: '#94A3B8', borderRadius: '6px', padding: '3px 8px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '11px', textTransform: 'uppercase' }}>
+                          {c.language}
+                        </span>
+                      </td>
+
+                      {/* Last Updated */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '12px', color: '#475569' }}>{timeAgo(c.updatedAt)}</span>
+                      </td>
+
+                      {/* Channels */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <div style={{ width: '20px', height: '20px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                             <Mail style={{ width: '12px', height: '12px', color: '#60A5FA' }} />
+                          </div>
+                          {c.channel_ids?.whatsapp && (
+                            <div style={{ width: '20px', height: '20px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                               <MessageSquare style={{ width: '12px', height: '12px', color: '#3ECF6A' }} />
+                            </div>
+                          )}
+                          {c.phone && (
+                            <div style={{ width: '20px', height: '20px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                               <Phone style={{ width: '12px', height: '12px', color: '#A78BFA' }} />
+                            </div>
+                          )}
+                          {c.channel_ids?.social_id && (
+                            <div style={{ width: '20px', height: '20px', borderRadius: '5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)' }}>
+                               <Smartphone style={{ width: '12px', height: '12px', color: '#F59E0B' }} />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Phone */}
-                    <td className="p-4 text-xs text-muted-foreground">{c.phone || "—"}</td>
-
-                    {/* Language */}
-                    <td className="p-4">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] uppercase text-muted-foreground">
-                        {c.language}
-                      </span>
-                    </td>
-
-                    {/* Last Updated */}
-                    <td className="p-4 text-xs text-muted-foreground">{timeAgo(c.updatedAt)}</td>
-
-                    {/* Channels */}
-                    <td className="p-4">
-                      <div className="flex gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-neon-cyan" />
-                        {c.channel_ids?.whatsapp  && <MessageSquare className="w-3.5 h-3.5 text-green-400" />}
-                        {c.phone                  && <Phone          className="w-3.5 h-3.5 text-neon-pink" />}
-                        {c.channel_ids?.social_id && <Smartphone     className="w-3.5 h-3.5 text-neon-yellow" />}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="p-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        c.isActive
-                          ? "bg-green-500/10 text-green-400"
-                          : "bg-red-500/10 text-red-400"
-                      }`}>
-                        {c.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </motion.div>
+                      {/* Status */}
+                      <td style={{ padding: '16px 20px', verticalAlign: 'middle' }}>
+                        {c.isActive ? (
+                          <span className="badge-green">ACTIVE</span>
+                        ) : (
+                          <span style={{ background: 'rgba(255,255,255,0.06)', color: '#475569', borderRadius: '100px', padding: '3px 10px', fontSize: '11px', fontWeight: 500 }}>INACTIVE</span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
