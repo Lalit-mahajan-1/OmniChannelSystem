@@ -97,6 +97,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/agent-analytics', require('./routes/agentAnalyticsRoutes'));
 app.use('/api/churn', require('./routes/churnRoutes'));
+app.use('/', require('./routes/integratedAgentRoutes'));
 
 // ── Metrics Endpoint (Prometheus) ───────────────────────────────────────────
 app.get('/metrics', metricsMiddleware);

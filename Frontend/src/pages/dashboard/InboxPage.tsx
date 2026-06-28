@@ -10,9 +10,10 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const BASE = import.meta.env.VITE_API_URL;
-const AGENT_BASE    = import.meta.env.VITE_AGENT_URL + "/agent";
-const WA_AGENT_BASE = import.meta.env.VITE_WA_AGENT_URL + "/wa-agent";
-const OMNI_BASE     = import.meta.env.VITE_OMNI_AGENT_URL + "/omni-agent";
+const API_ROOT = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+const AGENT_BASE    = import.meta.env.VITE_AGENT_URL ? import.meta.env.VITE_AGENT_URL + "/agent" : API_ROOT + "/agent";
+const WA_AGENT_BASE = import.meta.env.VITE_WA_AGENT_URL ? import.meta.env.VITE_WA_AGENT_URL + "/wa-agent" : API_ROOT + "/wa-agent";
+const OMNI_BASE     = import.meta.env.VITE_OMNI_AGENT_URL ? import.meta.env.VITE_OMNI_AGENT_URL + "/omni-agent" : API_ROOT + "/omni-agent";
 
 /* ─── palette — matches the Campaigns page ─── */
 const C = {
@@ -468,7 +469,7 @@ export default function InboxPage() {
         toast.success('🤖 WhatsApp auto-reply sent!', { duration: 3000 });
         setTimeout(() => fetchOmniTimeline(), 2500);
       } catch (err: any) {
-        toast.error('Auto-reply (WA) failed — is the WA Agent running on port 5002?');
+        console.warn('[Auto-Reply WA] Agent unavailable');
         console.error('[Auto-Reply WA]', err.message);
       } finally {
         setTimeout(() => { setIsAutoReplying(false); setLastAutoReplyType(null); }, 3500);
@@ -485,7 +486,7 @@ export default function InboxPage() {
         toast.success('🤖 Email auto-reply sent!', { duration: 3000 });
         setTimeout(() => fetchOmniTimeline(), 2500);
       } catch (err: any) {
-        toast.error('Auto-reply (Email) failed — is the Gmail Agent running on port 5001?');
+        console.warn('[Auto-Reply Email] Agent unavailable');
         console.error('[Auto-Reply Email]', err.message);
       } finally {
         setTimeout(() => { setIsAutoReplying(false); setLastAutoReplyType(null); }, 3500);
@@ -673,7 +674,7 @@ export default function InboxPage() {
       setEmailAgentSuggestion(res.data.suggestion);
     } catch (err: any) {
       setEmailAgentOpen(false);
-      toast.error("Email Agent is offline. Make sure it's running on port 5001.");
+      toast.error("Email Agent is not available in cloud deployment. Run locally for AI features.");
     } finally {
       setEmailAgentLoading(false);
     }
@@ -731,7 +732,7 @@ export default function InboxPage() {
         setWaAgentSuggestion(suggestRes.data.suggestion);
       }
     } catch (err: any) {
-      toast.error("Failed to load WA Agent context");
+      toast.error("WA Agent is not available in cloud deployment. Run locally for AI features.");
       setWaAgentOpen(false);
     } finally {
       setWaAgentLoading(false);

@@ -95,7 +95,8 @@ export default function CampaignsPage() {
   ];
 
   const [draftingAI, setDraftingAI] = useState<string | null>(null);
-  const AGENT_BASE = import.meta.env.VITE_AGENT_URL + "/agent";
+  const API_ROOT = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+  const AGENT_BASE = import.meta.env.VITE_AGENT_URL ? import.meta.env.VITE_AGENT_URL + "/agent" : API_ROOT + "/agent";
 
   async function handleDraftInAI(title: string, channel: string, insight: string) {
     setDraftingAI(title);
@@ -115,7 +116,10 @@ export default function CampaignsPage() {
         setShowModal(true);
       }
     } catch {
-      alert("AI Agent is offline. Make sure Gmail Agent is running on port 5001.");
+      setFormName(title);
+      setFormType(channelType as "Email" | "WhatsApp" | "SMS");
+      setFormContent(`Draft campaign message for: ${title}. ${insight}`);
+      setShowModal(true);
     } finally {
       setDraftingAI(null);
     }
