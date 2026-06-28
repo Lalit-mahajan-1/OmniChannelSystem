@@ -38,8 +38,8 @@ app.use(helmet({
 // CORS — Allow frontend dev server and any localhost origin
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (curl, Postman) or any localhost origin
-    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    // Allow requests with no origin (curl, Postman), localhost, or deployed frontend
+    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin) || /\.netlify\.app$/.test(origin) || origin === process.env.FRONTEND_URL) {
       return cb(null, true);
     }
     cb(new Error(`CORS: origin ${origin} not allowed`));
