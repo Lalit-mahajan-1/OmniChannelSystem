@@ -2,7 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
-dotenv.config();
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '../../Backend/.env') });
 
 const app         = express();
 app.use(cors());
@@ -13,7 +17,13 @@ const API_BASE      = process.env.API_BASE      || 'http://localhost:5000/api';
 const EMPLOYER_ID   = process.env.EMPLOYER_MONGO_ID;
 const GMAIL_AGENT   = process.env.GMAIL_AGENT_URL  || 'http://localhost:5001';
 const WA_AGENT      = process.env.WA_AGENT_URL     || 'http://localhost:5002';
+const SERVICE_KEY   = process.env.AGENT_SERVICE_KEY;
 const PORT          = process.env.OMNI_AGENT_PORT  || 5003;
+
+const svcH = () => ({
+  'X-Service-Key': SERVICE_KEY,
+  'X-Employer-Id': EMPLOYER_ID,
+});
 
 // ── Groq AI ───────────────────────────────────────────────────────────────────
 const askGroq = async (systemPrompt, userPrompt) => {
@@ -216,7 +226,7 @@ app.post('/omni-agent/send', async (req, res) => {
         employerId: EMPLOYER_ID,
         customerId,
         message: message.trim(),
-      });
+      }, { headers: svcH() });
       result = r.data;
     } else if (channel === 'email') {
       if (!emailId) {
@@ -224,7 +234,7 @@ app.post('/omni-agent/send', async (req, res) => {
       }
       const r = await axios.post(`${API_BASE}/emails/${emailId}/reply`, {
         body: message.trim(),
-      });
+      }, { headers: svcH() });
       result = r.data;
     } else {
       return res.status(400).json({ success: false, message: 'channel must be whatsapp or email' });

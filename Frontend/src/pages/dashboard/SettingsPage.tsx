@@ -1,743 +1,247 @@
-import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  User,
-  Mail,
-  Briefcase,
-  Phone,
-  Hash,
-  Lock,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Save,
-  Settings,
-  ShieldCheck,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import {
+  Settings, User, Lock, Bell, Zap, Save,
+  Loader2, Eye, EyeOff, Shield, Sparkles, Clock, Wifi, WifiOff,
+} from "lucide-react";
 
-const BASE = import.meta.env.VITE_API_URL;
-
-type FormDataType = {
-  name: string;
-  email: string;
-  company: string;
-  phone: string;
-  phoneNumberId: string;
-  password: string;
+/* ── palette ─────────────────────────────────────────────────────────────── */
+const C = {
+  cream: "#FFF8E7", white: "#FFFFFF", border: "#F0E4C8",
+  textMain: "#1A1A1A", textMid: "#8A8578",
+  yellow: "#FFC107", yellowDark: "#B8860B",
+  yellowBg: "#FFF3CD", yellowBorder: "#FFE082",
+  green: "#16a34a", greenBg: "#dcfce7",
+  red: "#dc2626", redBg: "#fee2e2",
+  blue: "#185FA5", blueBg: "#E6F1FB",
 };
 
-const styles = {
-  page: {
-    minHeight: "100%",
-    padding: "32px",
-    background:
-      "radial-gradient(circle at top left, rgba(62,207,106,0.08), transparent 22%), radial-gradient(circle at top right, rgba(96,165,250,0.08), transparent 24%), #020617",
-    overflowY: "auto" as const,
-  },
-  shell: {
-    maxWidth: "1080px",
-    margin: "0 auto",
-    display: "grid",
-    gridTemplateColumns: "320px minmax(0, 1fr)",
-    gap: "24px",
-  },
-  card: {
-    background: "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(2,6,23,0.88))",
-    border: "1px solid rgba(148,163,184,0.14)",
-    borderRadius: "24px",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-    backdropFilter: "blur(10px)",
-  },
-  sideCard: {
-    padding: "24px",
-    position: "sticky" as const,
-    top: "24px",
-    height: "fit-content",
-  },
-  mainCard: {
-    padding: "28px",
-  },
-  badge: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "18px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "linear-gradient(135deg, rgba(62,207,106,0.18), rgba(96,165,250,0.12))",
-    border: "1px solid rgba(62,207,106,0.22)",
-    marginBottom: "18px",
-  },
-  title: {
-    margin: 0,
-    color: "#F8FAFC",
-    fontSize: "28px",
-    fontWeight: 700,
-    lineHeight: 1.15,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  subtitle: {
-    margin: "8px 0 0",
-    color: "#94A3B8",
-    fontSize: "14px",
-    lineHeight: 1.6,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  sideSection: {
-    marginTop: "28px",
-    paddingTop: "20px",
-    borderTop: "1px solid rgba(148,163,184,0.1)",
-  },
-  sideLabel: {
-    color: "#64748B",
-    fontSize: "11px",
-    fontWeight: 700,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase" as const,
-    marginBottom: "10px",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  statRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    color: "#CBD5E1",
-    fontSize: "14px",
-    padding: "10px 0",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  dot: {
-    width: "10px",
-    height: "10px",
-    borderRadius: "999px",
-    background: "#22C55E",
-    boxShadow: "0 0 0 6px rgba(34,197,94,0.12)",
-  },
-  formHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "16px",
-    marginBottom: "26px",
-    paddingBottom: "18px",
-    borderBottom: "1px solid rgba(148,163,184,0.1)",
-  },
-  formTitleWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-  },
-  formIconWrap: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(96,165,250,0.1)",
-    border: "1px solid rgba(96,165,250,0.18)",
-  },
-  formTitle: {
-    margin: 0,
-    color: "#F8FAFC",
-    fontSize: "20px",
-    fontWeight: 700,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  formDesc: {
-    margin: "4px 0 0",
-    color: "#94A3B8",
-    fontSize: "13px",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  section: {
-    marginBottom: "20px",
-    padding: "22px",
-    borderRadius: "20px",
-    background: "rgba(255,255,255,0.02)",
-    border: "1px solid rgba(148,163,184,0.1)",
-  },
-  sectionHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    marginBottom: "18px",
-    color: "#E2E8F0",
-    fontSize: "15px",
-    fontWeight: 700,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  fieldsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "18px",
-  },
-  fullSpan: {
-    gridColumn: "1 / -1",
-  },
-  fieldWrap: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "8px",
-  },
-  label: {
-    color: "#94A3B8",
-    fontSize: "11px",
-    fontWeight: 700,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase" as const,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  inputShell: {
-    position: "relative" as const,
-  },
-  input: {
-    width: "100%",
-    height: "50px",
-    borderRadius: "14px",
-    border: "1px solid rgba(148,163,184,0.14)",
-    background: "rgba(15,23,42,0.85)",
-    color: "#F8FAFC",
-    padding: "0 16px 0 46px",
-    outline: "none",
-    fontSize: "14px",
-    fontFamily: "'DM Sans', sans-serif",
-    transition: "all 0.2s ease",
-    boxSizing: "border-box" as const,
-  },
-  icon: {
-    position: "absolute" as const,
-    left: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    width: "18px",
-    height: "18px",
-    color: "#64748B",
-    pointerEvents: "none" as const,
-  },
-  helper: {
-    margin: 0,
-    color: "#64748B",
-    fontSize: "12px",
-    lineHeight: 1.5,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  actions: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    marginTop: "28px",
-    flexWrap: "wrap" as const,
-  },
-  saveButton: {
-    height: "50px",
-    border: "none",
-    borderRadius: "14px",
-    padding: "0 22px",
-    background: "linear-gradient(135deg, #22C55E, #16A34A)",
-    color: "#03120A",
-    fontWeight: 700,
-    fontSize: "14px",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "10px",
-    cursor: "pointer",
-    boxShadow: "0 10px 25px rgba(34,197,94,0.22)",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  secondaryText: {
-    color: "#64748B",
-    fontSize: "13px",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  alertBase: {
-    marginBottom: "18px",
-    padding: "14px 16px",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "10px",
-    fontSize: "14px",
-    fontFamily: "'DM Sans', sans-serif",
-  },
+const inputSx: React.CSSProperties = {
+  width: "100%", background: C.white, border: `1px solid ${C.border}`,
+  borderRadius: 8, padding: "10px 12px", color: C.textMain,
+  fontSize: 13, outline: "none", fontFamily: "DM Sans",
+};
+const btnSx: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 6, padding: "10px 16px",
+  borderRadius: 8, border: "none", background: C.yellow, color: C.textMain,
+  fontSize: 13, fontWeight: 600, cursor: "pointer",
+};
+const labelSx: React.CSSProperties = {
+  display: "block", fontSize: 12, color: C.textMid, marginBottom: 6, fontFamily: "DM Sans",
 };
 
-function Section({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
+/* ── Section wrapper ─────────────────────────────────────────────────────── */
+function Section({ icon, title, desc, children }: {
+  icon: React.ReactNode; title: string; desc: string; children: React.ReactNode;
 }) {
   return (
-    <section style={styles.section}>
-      <div style={styles.sectionHeader}>
-        {icon}
-        <span>{title}</span>
+    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: C.yellowBg, display: "flex", alignItems: "center", justifyContent: "center", color: C.yellowDark }}>
+          {icon}
+        </div>
+        <div>
+          <h3 style={{ fontFamily: "DM Sans", fontWeight: 600, fontSize: 16, color: C.textMain, margin: 0 }}>{title}</h3>
+          <p style={{ fontFamily: "DM Sans", fontSize: 13, color: C.textMid, margin: 0 }}>{desc}</p>
+        </div>
       </div>
       {children}
-    </section>
-  );
-}
-
-function Field({
-  label,
-  icon,
-  children,
-  helper,
-  full = false,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  helper?: string;
-  full?: boolean;
-}) {
-  return (
-    <div style={{ ...styles.fieldWrap, ...(full ? styles.fullSpan : {}) }}>
-      <label style={styles.label}>{label}</label>
-      <div style={styles.inputShell}>
-        <div style={styles.icon}>{icon}</div>
-        {children}
-      </div>
-      {helper ? <p style={styles.helper}>{helper}</p> : null}
     </div>
   );
 }
 
+/* ── Toggle ──────────────────────────────────────────────────────────────── */
+function Toggle({ label, desc, checked, onChange }: {
+  label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: "DM Sans", fontSize: 14, color: C.textMain, marginBottom: 2 }}>{label}</div>
+        {desc && <div style={{ fontFamily: "DM Sans", fontSize: 12, color: C.textMid }}>{desc}</div>}
+      </div>
+      <button onClick={() => onChange(!checked)} style={{ width: 48, height: 26, borderRadius: 13, border: "none", background: checked ? C.yellow : C.border, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
+        <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.white, position: "absolute", top: 3, left: checked ? 25 : 3, transition: "left 0.2s" }} />
+      </button>
+    </div>
+  );
+}
+
+/* ── Status dot ──────────────────────────────────────────────────────────── */
+function StatusDot({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+      {ok ? <Wifi size={16} color={C.green} /> : <WifiOff size={16} color={C.red} />}
+      <span style={{ fontFamily: "DM Sans", fontSize: 14, color: C.textMain, flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 100, background: ok ? C.greenBg : C.redBg, color: ok ? C.green : C.red }}>
+        {ok ? "Connected" : "Not configured"}
+      </span>
+    </div>
+  );
+}
+
+/* ── helpers ──────────────────────────────────────────────────────────────── */
+function loadJSON<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) || "") as T; } catch { return fallback; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsPage() {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
+  const qc = useQueryClient();
 
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  // ── 1. Profile ──
+  const [profile, setProfile] = useState({ name: "", email: "", company: "" });
+  useEffect(() => {
+    if (user) setProfile({ name: user.name || "", email: user.email || "", company: (user as any).company || "" });
+  }, [user]);
 
-  const [formData, setFormData] = useState<FormDataType>({
-    name: "",
-    email: "",
-    company: "",
-    phone: "",
-    phoneNumberId: "",
-    password: "",
+  const profileMut = useMutation({
+    mutationFn: async (d: typeof profile) => {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/employers/${(user as any)?._id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        body: JSON.stringify(d),
+      });
+      if (!res.ok) throw new Error("Failed to update profile");
+      return res.json();
+    },
+    onSuccess: () => { toast.success("Profile updated"); qc.invalidateQueries({ queryKey: ["user"] }); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
-  const employeeId = user?._id || (user as any)?.id;
+  // ── 2. Notifications (localStorage) ──
+  const [notif, setNotif] = useState(() => loadJSON("omni_notif_prefs", { emailAlerts: true, whatsappAlerts: false, complaintAlerts: true }));
+  const saveNotif = (n: typeof notif) => { setNotif(n); localStorage.setItem("omni_notif_prefs", JSON.stringify(n)); toast.success("Notification preferences saved"); };
 
-  const authHeaders = useMemo(
-    () => ({
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    }),
-    []
-  );
+  // ── 3. AI Agent config (localStorage) ──
+  const [ai, setAI] = useState(() => loadJSON("omni_ai_config", { autoReply: false, model: "llama-3.1-8b-instant" }));
+  const saveAI = (v: typeof ai) => { setAI(v); localStorage.setItem("omni_ai_config", JSON.stringify(v)); toast.success("AI config saved"); };
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!employeeId) {
-        setInitialLoading(false);
-        return;
-      }
+  // ── 4. Business Hours (localStorage) ──
+  const [hours, setHours] = useState(() => loadJSON("omni_business_hours", { start: "09:00", end: "18:00", timezone: "IST", weekends: false }));
+  const saveHours = () => { localStorage.setItem("omni_business_hours", JSON.stringify(hours)); toast.success("Business hours saved"); };
 
-      try {
-        const res = await axios.get(`${BASE}/employers/${employeeId}`, {
-          headers: authHeaders,
-        });
-
-        const data = res.data.data;
-
-        setFormData({
-          name: data.name || "",
-          email: data.email || "",
-          company: data.company || "",
-          phone: data.phone || "",
-          phoneNumberId: data.phoneNumberId || "",
-          password: "",
-        });
-      } catch (err: any) {
-        setError(
-          err.response?.data?.message || "Failed to load profile details."
-        );
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [employeeId, authHeaders]);
-
-  const handleChange =
-    (key: keyof FormDataType) =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({ ...prev, [key]: e.target.value }));
-      if (success) setSuccess(false);
-      if (error) setError("");
-    };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setSuccess(false);
-    setError("");
-
-    try {
-      if (!employeeId) throw new Error("Invalid session identity");
-
-      const updateData: Partial<FormDataType> = { ...formData };
-
-      if (!updateData.password) delete updateData.password;
-      if (!updateData.company) delete updateData.company;
-      if (!updateData.phone) delete updateData.phone;
-      if (!updateData.phoneNumberId) delete updateData.phoneNumberId;
-
-      const res = await axios.put(`${BASE}/employers/${employeeId}`, updateData, {
-        headers: authHeaders,
+  // ── 6. Password ──
+  const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showPw, setShowPw] = useState(false);
+  const pwMut = useMutation({
+    mutationFn: async (d: typeof pw) => {
+      if (d.newPassword !== d.confirmPassword) throw new Error("Passwords do not match");
+      if (d.newPassword.length < 6) throw new Error("Password must be at least 6 characters");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/employers/${(user as any)?._id}/password`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: d.currentPassword, newPassword: d.newPassword }),
       });
-
-      const token = localStorage.getItem("token") || "";
-      login(token, res.data.data);
-
-      setSuccess(true);
-      setFormData((prev) => ({ ...prev, password: "" }));
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || "Failed to update profile.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (initialLoading) {
-    return (
-      <div
-        style={{
-          minHeight: "100%",
-          display: "grid",
-          placeItems: "center",
-          background: "#020617",
-          padding: "32px",
-        }}
-      >
-        <div
-          style={{
-            ...styles.card,
-            padding: "28px",
-            width: "100%",
-            maxWidth: "420px",
-            textAlign: "center",
-          }}
-        >
-          <Loader2
-            style={{
-              width: "34px",
-              height: "34px",
-              color: "#22C55E",
-              animation: "spin 1s linear infinite",
-              marginBottom: "14px",
-            }}
-          />
-          <h2
-            style={{
-              margin: 0,
-              color: "#F8FAFC",
-              fontSize: "18px",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-          >
-            Loading profile
-          </h2>
-          <p style={{ ...styles.subtitle, marginTop: "8px" }}>
-            Fetching your account settings and communication details.
-          </p>
-        </div>
-      </div>
-    );
-  }
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j as any).message || "Failed to change password"); }
+      return res.json();
+    },
+    onSuccess: () => { toast.success("Password changed"); setPw({ currentPassword: "", newPassword: "", confirmPassword: "" }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
-    <div style={styles.page}>
-      <style>
-        {`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-
-          input::placeholder {
-            color: #64748B;
-          }
-
-          input:focus {
-            border-color: rgba(34, 197, 94, 0.35) !important;
-            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08);
-          }
-
-          @media (max-width: 960px) {
-            .settings-shell {
-              grid-template-columns: 1fr !important;
-            }
-
-            .settings-side {
-              position: relative !important;
-              top: 0 !important;
-            }
-          }
-
-          @media (max-width: 700px) {
-            .settings-grid {
-              grid-template-columns: 1fr !important;
-            }
-
-            .settings-main {
-              padding: 20px !important;
-            }
-
-            .settings-side {
-              padding: 20px !important;
-            }
-
-            .settings-page {
-              padding: 18px !important;
-            }
-          }
-        `}
-      </style>
-
-      <div className="settings-shell" style={styles.shell}>
-        <motion.aside
-          initial={{ opacity: 0, x: -16 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="settings-side"
-          style={{ ...styles.card, ...styles.sideCard }}
-        >
-          <div style={styles.badge}>
-            <Settings size={26} color="#4ADE80" />
-          </div>
-
-          <h1 style={styles.title}>Employee Profile</h1>
-          <p style={styles.subtitle}>
-            Clean account settings for identity, communication, and security.
-          </p>
-
-          <div style={styles.sideSection}>
-            <div style={styles.sideLabel}>Account overview</div>
-
-            <div style={styles.statRow}>
-              <span>Name</span>
-              <span style={{ color: "#F8FAFC", fontWeight: 600 }}>
-                {formData.name || "—"}
-              </span>
-            </div>
-
-            <div style={styles.statRow}>
-              <span>Email</span>
-              <span
-                style={{
-                  color: "#CBD5E1",
-                  fontWeight: 600,
-                  maxWidth: "160px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-                title={formData.email}
-              >
-                {formData.email || "—"}
-              </span>
-            </div>
-
-            <div style={styles.statRow}>
-              <span>Status</span>
-              <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={styles.dot} />
-                <span style={{ color: "#86EFAC", fontWeight: 600 }}>Active</span>
-              </span>
-            </div>
-          </div>
-
-          <div style={styles.sideSection}>
-            <div style={styles.sideLabel}>Security note</div>
-            <p
-              style={{
-                margin: 0,
-                color: "#94A3B8",
-                fontSize: "13px",
-                lineHeight: 1.7,
-                fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
-              Leave the password field empty if you do not want to change current credentials.
-            </p>
-          </div>
-        </motion.aside>
-
-        <motion.main
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ ...styles.card, ...styles.mainCard }}
-          className="settings-main"
-        >
-          <div style={styles.formHeader}>
-            <div style={styles.formTitleWrap}>
-              <div style={styles.formIconWrap}>
-                <ShieldCheck size={22} color="#60A5FA" />
-              </div>
-              <div>
-                <h2 style={styles.formTitle}>Manage settings</h2>
-                <p style={styles.formDesc}>
-                  Update employee profile data and save changes securely.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {error ? (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                style={{
-                  ...styles.alertBase,
-                  background: "rgba(239,68,68,0.12)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  color: "#FCA5A5",
-                }}
-              >
-                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>{error}</span>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <AnimatePresence mode="wait">
-            {success ? (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                style={{
-                  ...styles.alertBase,
-                  background: "rgba(34,197,94,0.12)",
-                  border: "1px solid rgba(34,197,94,0.22)",
-                  color: "#86EFAC",
-                }}
-              >
-                <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>Profile updated successfully.</span>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <form onSubmit={handleSubmit}>
-            <Section icon={<User size={16} color="#60A5FA" />} title="Professional Identity">
-              <div className="settings-grid" style={styles.fieldsGrid}>
-                <Field label="Full Name *" icon={<User size={18} />} full>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={handleChange("name")}
-                    style={styles.input}
-                    placeholder="Enter full name"
-                  />
-                </Field>
-
-                <Field label="Email Address *" icon={<Mail size={18} />} full>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange("email")}
-                    style={styles.input}
-                    placeholder="Enter email address"
-                  />
-                </Field>
-
-                <Field label="Company / Division" icon={<Briefcase size={18} />} full>
-                  <input
-                    type="text"
-                    value={formData.company}
-                    onChange={handleChange("company")}
-                    style={styles.input}
-                    placeholder="e.g. Acme Corp Division"
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            <Section icon={<Phone size={16} color="#22C55E" />} title="Communication Details">
-              <div className="settings-grid" style={styles.fieldsGrid}>
-                <Field label="Phone Number" icon={<Phone size={18} />}>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={handleChange("phone")}
-                    style={styles.input}
-                    placeholder="+91 98765 43210"
-                  />
-                </Field>
-
-                <Field
-                  label="Phone Identity ID"
-                  icon={<Hash size={18} />}
-                  helper="Integration identifier associated with the telecom provider."
-                >
-                  <input
-                    type="text"
-                    value={formData.phoneNumberId}
-                    onChange={handleChange("phoneNumberId")}
-                    style={styles.input}
-                    placeholder="e.g. TWILIO-123"
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            <Section icon={<Lock size={16} color="#F59E0B" />} title="Security">
-              <div className="settings-grid" style={styles.fieldsGrid}>
-                <Field
-                  label="Change Password"
-                  icon={<Lock size={18} />}
-                  full
-                  helper="Minimum 6 characters. Leave blank to keep the current password."
-                >
-                  <input
-                    type="password"
-                    minLength={6}
-                    value={formData.password}
-                    onChange={handleChange("password")}
-                    style={styles.input}
-                    placeholder="Enter new password"
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            <div style={styles.actions}>
-              <span style={styles.secondaryText}>
-                Review changes before saving. Empty optional fields are ignored.
-              </span>
-
-              <button type="submit" disabled={loading} style={styles.saveButton}>
-                {loading ? (
-                  <Loader2
-                    size={18}
-                    style={{ animation: "spin 1s linear infinite" }}
-                  />
-                ) : (
-                  <Save size={18} />
-                )}
-                {loading ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </motion.main>
+    <div style={{ padding: "28px 32px", minHeight: "100vh", background: C.cream, fontFamily: "DM Sans, sans-serif" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: C.yellowBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Settings size={20} color={C.yellowDark} />
+        </div>
+        <div>
+          <h1 style={{ fontFamily: "DM Sans", fontWeight: 700, fontSize: 20, color: C.textMain, margin: 0 }}>Settings</h1>
+          <p style={{ fontFamily: "DM Sans", fontSize: 13, color: C.textMid, margin: 0 }}>Manage your account, notifications, and AI configuration</p>
+        </div>
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+        {/* ── 1. Profile ── */}
+        <Section icon={<User size={18} />} title="Profile Settings" desc="Update your personal details">
+          {([ ["Name", "name", "text"], ["Email", "email", "email"], ["Company", "company", "text"] ] as const).map(([lbl, key, type]) => (
+            <div key={key} style={{ marginBottom: 12 }}>
+              <label style={labelSx}>{lbl}</label>
+              <input type={type} value={(profile as any)[key]} onChange={e => setProfile({ ...profile, [key]: e.target.value })} style={inputSx} />
+            </div>
+          ))}
+          <button onClick={() => profileMut.mutate(profile)} disabled={profileMut.isPending} style={{ ...btnSx, opacity: profileMut.isPending ? 0.6 : 1 }}>
+            {profileMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Changes
+          </button>
+        </Section>
+
+        {/* ── 2. Notifications ── */}
+        <Section icon={<Bell size={18} />} title="Notification Preferences" desc="Choose which alerts you receive">
+          <Toggle label="Email Notifications" desc="Get notified via email for new tickets" checked={notif.emailAlerts} onChange={v => saveNotif({ ...notif, emailAlerts: v })} />
+          <Toggle label="WhatsApp Alerts" desc="Receive WhatsApp message alerts" checked={notif.whatsappAlerts} onChange={v => saveNotif({ ...notif, whatsappAlerts: v })} />
+          <Toggle label="Complaint Alerts" desc="Instant alerts for social media complaints" checked={notif.complaintAlerts} onChange={v => saveNotif({ ...notif, complaintAlerts: v })} />
+        </Section>
+
+        {/* ── 3. AI Agent Config ── */}
+        <Section icon={<Sparkles size={18} />} title="AI Agent Configuration" desc="Manage agent status and auto-reply defaults">
+          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+            {[ { label: "Gmail Agent", port: 5001 }, { label: "WhatsApp Agent", port: 5002 } ].map(a => (
+              <div key={a.port} style={{ flex: 1, padding: 12, borderRadius: 10, background: C.yellowBg, border: `1px solid ${C.yellowBorder}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textMain, marginBottom: 4 }}>{a.label}</div>
+                <div style={{ fontSize: 11, color: C.textMid }}>Port {a.port}</div>
+              </div>
+            ))}
+          </div>
+          <Toggle label="Auto-Reply (default)" desc="Enable AI auto-reply for new conversations" checked={ai.autoReply} onChange={v => saveAI({ ...ai, autoReply: v })} />
+          <div style={{ marginTop: 12 }}>
+            <label style={labelSx}>Default AI Model</label>
+            <input value={ai.model} onChange={e => saveAI({ ...ai, model: e.target.value })} style={inputSx} />
+          </div>
+        </Section>
+
+        {/* ── 4. Business Hours ── */}
+        <Section icon={<Clock size={18} />} title="Business Hours" desc="Set your operating hours for SLA tracking">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><label style={labelSx}>Start Time</label><input type="time" value={hours.start} onChange={e => setHours({ ...hours, start: e.target.value })} style={inputSx} /></div>
+            <div><label style={labelSx}>End Time</label><input type="time" value={hours.end} onChange={e => setHours({ ...hours, end: e.target.value })} style={inputSx} /></div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelSx}>Timezone</label>
+            <select value={hours.timezone} onChange={e => setHours({ ...hours, timezone: e.target.value })} style={{ ...inputSx, cursor: "pointer" }}>
+              {["IST", "UTC", "EST", "PST", "CET"].map(tz => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+          </div>
+          <Toggle label="Include Weekends" desc="Count weekends as business days" checked={hours.weekends} onChange={v => setHours({ ...hours, weekends: v })} />
+          <button onClick={saveHours} style={{ ...btnSx, marginTop: 12 }}><Save size={14} /> Save Hours</button>
+        </Section>
+
+        {/* ── 5. API Connections ── */}
+        <Section icon={<Zap size={18} />} title="API Connections" desc="Integration status for connected services">
+          <StatusDot ok={!!import.meta.env.VITE_WA_AGENT_URL} label="WhatsApp Business API" />
+          <StatusDot ok={!!import.meta.env.VITE_AGENT_URL} label="Gmail Integration" />
+          <StatusDot ok={!!import.meta.env.VITE_API_URL} label="Groq AI Engine" />
+          <div style={{ marginTop: 12, padding: 12, background: C.blueBg, borderRadius: 8, fontSize: 12, color: C.blue }}>
+            Connection status is based on environment configuration. Update your .env file to add or change integrations.
+          </div>
+        </Section>
+
+        {/* ── 6. Security ── */}
+        <Section icon={<Shield size={18} />} title="Security" desc="Change your account password">
+          {([ ["Current Password", "currentPassword"], ["New Password", "newPassword"], ["Confirm Password", "confirmPassword"] ] as const).map(([lbl, key]) => (
+            <div key={key} style={{ marginBottom: 12 }}>
+              <label style={labelSx}>{lbl}</label>
+              <input type={showPw ? "text" : "password"} value={pw[key]} onChange={e => setPw({ ...pw, [key]: e.target.value })} style={inputSx} />
+            </div>
+          ))}
+          <button onClick={() => setShowPw(!showPw)} style={{ background: "none", border: "none", color: C.textMid, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
+            {showPw ? <EyeOff size={14} /> : <Eye size={14} />} {showPw ? "Hide" : "Show"} passwords
+          </button>
+          <button
+            onClick={() => pwMut.mutate(pw)}
+            disabled={pwMut.isPending || !pw.currentPassword || !pw.newPassword || !pw.confirmPassword}
+            style={{ ...btnSx, opacity: (pwMut.isPending || !pw.currentPassword || !pw.newPassword || !pw.confirmPassword) ? 0.5 : 1 }}
+          >
+            {pwMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />} Change Password
+          </button>
+        </Section>
+      </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } .animate-spin { animation: spin 1s linear infinite; }`}</style>
     </div>
   );
 }

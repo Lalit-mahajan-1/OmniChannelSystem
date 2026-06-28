@@ -1,421 +1,215 @@
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Shield, AlertTriangle, CheckCircle, Clock, FileText, Ban,
-  Bell, ChevronRight, Download, RefreshCw, Lock,
-  AlertCircle, Eye, Zap, Filter, ExternalLink,
-} from "lucide-react";
-import { useState } from "react";
+import { Shield, AlertTriangle, CheckCircle, Clock, FileText, Ban, Bell, ChevronRight, Download, RefreshCw, Lock, AlertCircle, Eye, Zap, Filter, ExternalLink, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { api } from "@/lib/api";
+import type { ContentApprovalData, AuditLogData } from "@/lib/api";
 
-/* ─── data ─── */
-const ALERTS = [
-  {
-    type:"warning",
-    title:"DND Number Detected",
-    desc:"Customer +91-98765-43210 is on TRAI DND registry. SMS delivery blocked automatically.",
-    time:"5m ago", rule:"TRAI DND Rule §4.2", action:"Review Customer",
-  },
-  {
-    type:"success",
-    title:"Consent Verified — Campaign C-4521",
-    desc:"Bulk WhatsApp campaign passed double opt-in consent check. 12,450 contacts validated.",
-    time:"1h ago", rule:"RBI Consent Framework", action:"View Report",
-  },
-  {
-    type:"error",
-    title:"Template Pending Approval",
-    desc:"Message template 'Promo-March-Loan' awaiting compliance officer review before TRAI submission.",
-    time:"2h ago", rule:"TRAI DLT §7.1", action:"Review Template",
-  },
-  {
-    type:"success",
-    title:"Monthly Audit Passed",
-    desc:"March 2026 communication audit complete — 99.5% compliance across all 29,750 messages sent.",
-    time:"1d ago", rule:"RBI Circular 2024/87", action:"Download Report",
-  },
-  {
-    type:"warning",
-    title:"Opt-Out Request Received",
-    desc:"14 customers unsubscribed from marketing communications in last 24h. Suppression list updated.",
-    time:"3h ago", rule:"PDPA §12", action:"View List",
-  },
-  {
-    type:"info",
-    title:"DPDP Act Update",
-    desc:"New Digital Personal Data Protection Act guidelines effective April 1, 2026. Review required.",
-    time:"2d ago", rule:"DPDP Act 2023", action:"Read Circular",
-  },
-];
+const C = {
+  cream: "#FFF8E7", creamDeep: "#FFFDF5", white: "#FFFFFF",
+  border: "#F0E4C8", textMain: "#1A1A1A", textMid: "#8A8578", textFaint: "#B0A99A",
+  yellow: "#FFC107", yellowDark: "#B8860B", yellowBg: "#FFF3CD", yellowBorder: "#FFE082",
+  amber: "#854F0B", amberBg: "#FAEEDA", amberBorder: "#FAC775",
+  green: "#B8860B", greenBg: "#FFF3CD", greenBorder: "#FFE082",
+  blue: "#185FA5", blueBg: "#E6F1FB", blueBorder: "#B5D4F4",
+  red: "#A32D2D", redBg: "#FCEBEB", redBorder: "#F7C1C1",
+};
 
 const RULES = [
-  { label:"TRAI DND Registry",       status:"synced",  lastCheck:"2m ago",     icon:Ban,       desc:"Auto-blocks DND numbers before every campaign dispatch" },
-  { label:"RBI Consent Framework",   status:"active",  lastCheck:"Real-time",  icon:CheckCircle,desc:"Double opt-in required for all financial product messaging" },
-  { label:"DPDP Act 2023",           status:"review",  lastCheck:"Pending",    icon:FileText,  desc:"New data protection guidelines require policy update by Apr 1" },
-  { label:"TRAI DLT Registration",   status:"active",  lastCheck:"Verified",   icon:Shield,    desc:"All message templates registered on Distributed Ledger" },
-  { label:"RBI Fair Practice Code",  status:"active",  lastCheck:"Real-time",  icon:Lock,      desc:"Communication frequency limits enforced per customer" },
+  { label: "TRAI DND Registry", status: "synced", lastCheck: "2m ago", icon: Ban, desc: "Auto-blocks DND numbers before every campaign dispatch" },
+  { label: "RBI Consent Framework", status: "active", lastCheck: "Real-time", icon: CheckCircle, desc: "Double opt-in required for all financial product messaging" },
+  { label: "DPDP Act 2023", status: "review", lastCheck: "Pending", icon: FileText, desc: "New data protection guidelines require policy update by Apr 1" },
+  { label: "TRAI DLT Registration", status: "active", lastCheck: "Verified", icon: Shield, desc: "All message templates registered on Distributed Ledger" },
+  { label: "RBI Fair Practice Code", status: "active", lastCheck: "Real-time", icon: Lock, desc: "Communication frequency limits enforced per customer" },
 ];
 
-const PENDING = [
-  { id:"TPL-0041", name:"Q2 Loan Offer Template",    channel:"whatsapp", submittedBy:"Ravi Menon",    age:"6h",   risk:"low" },
-  { id:"TPL-0042", name:"FD Renewal Promo — April",  channel:"email",    submittedBy:"Priya Sharma",  age:"14h",  risk:"medium" },
-  { id:"TPL-0043", name:"EMI Late Payment Reminder", channel:"sms",      submittedBy:"Arun Kumar",    age:"1d",   risk:"high" },
-];
-
-const alertMeta: Record<string, { color:string; bg:string; border:string; icon:typeof Shield }> = {
-  warning: { color:"#F59E0B", bg:"rgba(245,158,11,0.1)", border:"rgba(245,158,11,0.25)", icon:AlertTriangle },
-  success: { color:"#3ECF6A", bg:"rgba(62,207,106,0.1)",  border:"rgba(62,207,106,0.25)",  icon:CheckCircle },
-  error:   { color:"#EF4444", bg:"rgba(239,68,68,0.1)",  border:"rgba(239,68,68,0.25)",  icon:AlertCircle },
-  info:    { color:"#60A5FA", bg:"rgba(96,165,250,0.1)",border:"rgba(96,165,250,0.25)",icon:Bell },
+const alertMeta: Record<string, { color: string; bg: string; border: string; icon: typeof Shield }> = {
+  warning: { color: C.yellowDark, bg: C.yellowBg, border: C.yellowBorder, icon: AlertTriangle },
+  success: { color: C.green, bg: C.greenBg, border: C.greenBorder, icon: CheckCircle },
+  error: { color: C.red, bg: C.redBg, border: C.redBorder, icon: AlertCircle },
+  info: { color: C.blue, bg: C.blueBg, border: C.blueBorder, icon: Bell },
 };
-
-const statusMeta: Record<string, { color:string; bg:string; label:string }> = {
-  active:  { color:"#3ECF6A", bg:"rgba(62,207,106,0.1)",  label:"Active" },
-  synced:  { color:"#60A5FA", bg:"rgba(96,165,250,0.1)",label:"Synced" },
-  review:  { color:"#F59E0B", bg:"rgba(245,158,11,0.1)", label:"Needs Review" },
+const statusMeta: Record<string, { color: string; bg: string; label: string }> = {
+  active: { color: C.green, bg: C.greenBg, label: "Active" },
+  synced: { color: C.blue, bg: C.blueBg, label: "Synced" },
+  review: { color: C.yellowDark, bg: C.yellowBg, label: "Needs Review" },
 };
-
-const riskMeta: Record<string, { color:string }> = {
-  low:    { color:"#3ECF6A" },
-  medium: { color:"#F59E0B" },
-  high:   { color:"#EF4444" },
+const riskMeta: Record<string, { color: string; bg: string; border: string }> = {
+  low: { color: C.green, bg: C.greenBg, border: C.greenBorder },
+  medium: { color: C.amber, bg: C.amberBg, border: C.amberBorder },
+  high: { color: C.red, bg: C.redBg, border: C.redBorder },
 };
-
-const channelMeta: Record<string, { color:string }> = {
-  whatsapp: { color:"#3ECF6A" },
-  email:    { color:"#60A5FA" },
-  sms:      { color:"#F59E0B" },
+const channelMeta: Record<string, { color: string; bg: string; border: string }> = {
+  whatsapp: { color: C.green, bg: C.greenBg, border: C.greenBorder },
+  email: { color: C.blue, bg: C.blueBg, border: C.blueBorder },
+  sms: { color: C.amber, bg: C.amberBg, border: C.amberBorder },
 };
 
 const TABS = ["Alerts", "Active Rules", "Pending Approvals"];
 
+function formatTimeAgo(d: string) { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); if (m < 1) return "just now"; if (m < 60) return `${m}m ago`; const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`; return `${Math.floor(h / 24)}d ago`; }
+function formatCount(n: number) { return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n); }
+
 function ScoreRing({ score }: { score: number }) {
-  const r = 38;
-  const circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
+  const r = 38, circ = 2 * Math.PI * r, dash = (score / 100) * circ;
   return (
-    <svg width="100" height="100" style={{ transform:"rotate(-90deg)" }}>
-      <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8"/>
-      <motion.circle
-        cx="50" cy="50" r={r} fill="none"
-        stroke={score >= 95 ? "#3ECF6A" : score >= 80 ? "#F59E0B" : "#EF4444"}
-        strokeWidth="8" strokeLinecap="round"
-        strokeDasharray={circ}
-        initial={{ strokeDashoffset: circ }}
-        animate={{ strokeDashoffset: circ - dash }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-      />
+    <svg width="100" height="100" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx="50" cy="50" r={r} fill="none" stroke={C.border} strokeWidth="8" />
+      <motion.circle cx="50" cy="50" r={r} fill="none" stroke={score >= 95 ? C.yellow : score >= 80 ? C.amber : C.red} strokeWidth="8" strokeLinecap="round" strokeDasharray={circ} initial={{ strokeDashoffset: circ }} animate={{ strokeDashoffset: circ - dash }} transition={{ duration: 1.2, ease: "easeOut" }} />
     </svg>
   );
 }
 
-/* ══════════════════════════════════════════ */
 export default function CompliancePage() {
   const [tab, setTab] = useState("Alerts");
-  const [alertFilter,setAlertFilter] = useState("all");
+  const [alertFilter, setAlertFilter] = useState("all");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLogData[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<ContentApprovalData[]>([]);
+  const [approvalStats, setApprovalStats] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
+  const [consentStats, setConsentStats] = useState({ dncCount: 0, marketingCount: 0, totalCount: 0 });
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const filteredAlerts = ALERTS.filter(a =>
-    alertFilter === "all" || a.type === alertFilter
-  );
+  const fetchAll = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [logsRes, pendingRes, statsRes, consentRes] = await Promise.all([
+        api.compliance.getAuditLogs(), api.compliance.getApprovals("Pending"),
+        api.compliance.getApprovalStats(), api.compliance.getConsentStats(),
+      ]);
+      setAuditLogs(logsRes.data || []); setPendingApprovals(pendingRes.data || []);
+      setApprovalStats(statsRes.data); setConsentStats(consentRes.data);
+    } catch (err: any) { setError(err.message || "Failed to load compliance data"); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const complianceScore = approvalStats.total > 0 ? Math.round((approvalStats.approved / approvalStats.total) * 1000) / 10 : 100;
+  const filteredAlerts = auditLogs.filter(a => alertFilter === "all" || a.type === alertFilter);
+
+  const handleApproval = async (id: string, status: "Approved" | "Rejected") => {
+    setActionLoading(id);
+    try { await api.compliance.updateApproval(id, status); await fetchAll(); }
+    catch (err: any) { setError(err.message); }
+    finally { setActionLoading(null); }
+  };
 
   return (
-    <div style={{ padding:"28px 32px", minHeight:"100%", overflowY:"auto" }} className="scrollbar-thin">
-
-      {/* ── HEADER ── */}
-      <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} style={{marginBottom:"24px"}}>
-        <div className="section-eyebrow">REGULATORY INTELLIGENCE</div>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
-          <h1 className="page-title" style={{ margin:0 }}>Compliance</h1>
-          <div style={{display:"flex",gap:"12px"}}>
-            <button className="btn-ghost-db" style={{ padding: '8px 16px', fontSize: '12px' }}>
-               <RefreshCw style={{ width: '14px', height: '14px' }}/> SYNC RULES
-            </button>
-            <button className="btn-primary-db" style={{ padding: '8px 16px', fontSize: '12px' }}>
-               <Download style={{ width: '14px', height: '14px' }}/> EXPORT AUDIT
-            </button>
+    <div style={{ padding: "28px 32px", minHeight: "100%", overflowY: "auto", background: C.cream, fontFamily: "DM Sans, Inter, sans-serif" }} className="scrollbar-thin">
+      {/* HEADER */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: "24px" }}>
+        <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint, marginBottom: 6 }}>Regulatory Intelligence</div>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, color: C.textMain }}>Compliance</h1>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button onClick={fetchAll} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, borderRadius: 8, border: `0.5px solid ${C.border}`, background: C.white, color: C.textMid, cursor: "pointer", fontWeight: 500 }}><RefreshCw style={{ width: 14, height: 14 }} /> Sync rules</button>
+            <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, borderRadius: 8, border: "none", background: C.textMain, color: C.yellow, cursor: "pointer", fontWeight: 500 }}><Download style={{ width: 14, height: 14 }} /> Export audit</button>
           </div>
         </div>
       </motion.div>
 
-      {/* ── TOP ROW: score + KPIs ── */}
-      <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:"24px",marginBottom:"24px"}}>
+      {error && <div style={{ background: C.redBg, border: `0.5px solid ${C.redBorder}`, borderRadius: 12, padding: "12px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: C.red }}><AlertCircle style={{ width: 16, height: 16 }} />{error}<button onClick={() => setError(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.red, cursor: "pointer" }}>×</button></div>}
 
-        {/* Compliance score card */}
-        <motion.div initial={{opacity:0,scale:0.96}} animate={{opacity:1,scale:1}} className="glass-card-db" style={{ padding:"24px", display:"flex",flexDirection:"column",alignItems:"center",position:"relative",overflow:"hidden", border: '1px solid rgba(62,207,106,0.2)', background: 'rgba(62,207,106,0.03)' }}>
-          <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#3ECF6A,transparent)`, opacity: 0.5}}/>
-          <div className="section-eyebrow" style={{marginBottom:"16px", color: '#475569'}}>COMPLIANCE SCORE</div>
-          <div style={{position:"relative",marginBottom:"16px"}}>
-            <ScoreRing score={99.5}/>
-            <div style={{ position:"absolute",top:"50%",left:"50%", transform:"translate(-50%,-50%)", fontFamily:"'JetBrains Mono', monospace",fontSize:"20px",fontWeight: 700, color: "#3ECF6A" }}>
-              99.5%
-            </div>
+      {/* SCORE + KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "24px", marginBottom: "24px" }}>
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} style={{ padding: 24, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", overflow: "hidden", border: `0.5px solid ${C.yellowBorder}`, background: C.creamDeep, borderRadius: 14 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg,transparent,${C.yellow},transparent)`, opacity: 0.6 }} />
+          <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint, marginBottom: 16 }}>Compliance score</div>
+          <div style={{ position: "relative", marginBottom: 16 }}>
+            {loading ? <div style={{ width: 100, height: 100, display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 style={{ width: 32, height: 32, color: C.yellowDark }} className="animate-spin" /></div> : <>
+              <ScoreRing score={complianceScore} />
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", fontFamily: "'JetBrains Mono', monospace", fontSize: 20, fontWeight: 500, color: C.yellowDark }}>{complianceScore}%</div>
+            </>}
           </div>
-          <div style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"10px",color:"#3ECF6A",marginBottom:"8px", textTransform: 'uppercase', fontWeight: 600}}>
-            ↑ Excellent standing
-          </div>
-          <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#94A3B8",textAlign:"center",lineHeight:1.5}}>
-            All RBI & TRAI rules<br/>passing in real-time
-          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.green, marginBottom: 8, textTransform: "uppercase", fontWeight: 500 }}>{loading ? "Loading..." : complianceScore >= 95 ? "↑ Excellent standing" : complianceScore >= 80 ? "→ Good standing" : "↓ Needs attention"}</div>
+          <div style={{ fontSize: 12, color: C.textMid, textAlign: "center", lineHeight: 1.5 }}>All RBI & TRAI rules<br />passing in real-time</div>
         </motion.div>
 
-        {/* KPI grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"16px"}}>
-          {[
-            { label:"DND BLOCKED",        value:"142",   icon:Ban,         color:"#EF4444", sub:"This month" },
-            { label:"PENDING APPROVALS",  value:"3",     icon:Clock,       color:"#F59E0B", sub:"Need action" },
-            { label:"ACTIVE CONSENTS",    value:"18.2K", icon:CheckCircle, color:"#3ECF6A",   sub:"Opt-in verified" },
-            { label:"TEMPLATES APPROVED", value:"47",    icon:FileText,    color:"#60A5FA",    sub:"This quarter" },
-          ].map((s,i)=>(
-            <motion.div key={s.label} initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:0.1+i*0.06}} className="stat-card-db" style={{ padding:"20px" }}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px"}}>
-                <span className="section-eyebrow" style={{ color: '#475569', margin: 0 }}>{s.label}</span>
-                <s.icon style={{ width: '14px', height: '14px', color: s.color }}/>
-              </div>
-              <div className="stat-value" style={{ fontSize: '28px', color: '#F1F5F9', marginBottom:"6px" }}>{s.value}</div>
-              <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#7DD3FC"}}>{s.sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+          {[{ label: "DND Blocked", value: loading ? "..." : formatCount(consentStats.dncCount), icon: Ban, color: C.red, bg: C.redBg, sub: "This month" }, { label: "Pending Approvals", value: loading ? "..." : String(approvalStats.pending), icon: Clock, color: C.yellowDark, bg: C.yellowBg, sub: "Need action" }, { label: "Active Consents", value: loading ? "..." : formatCount(consentStats.marketingCount), icon: CheckCircle, color: C.green, bg: C.greenBg, sub: "Opt-in verified" }, { label: "Templates Approved", value: loading ? "..." : String(approvalStats.approved), icon: FileText, color: C.blue, bg: C.blueBg, sub: "This quarter" }].map((s, i) => (
+            <motion.div key={s.label} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.06 }} style={{ padding: 20, background: C.white, border: `0.5px solid ${C.border}`, borderRadius: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}><span style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textFaint }}>{s.label}</span><div style={{ width: 24, height: 24, borderRadius: 6, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}><s.icon style={{ width: 13, height: 13, color: s.color }} /></div></div>
+              <div style={{ fontSize: 28, fontWeight: 500, color: C.textMain, marginBottom: 6 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: C.textMid }}>{s.sub}</div>
             </motion.div>
           ))}
         </div>
       </div>
 
-      {/* ── TABS ── */}
-      <div style={{display:"flex",gap:"8px",marginBottom:"24px",borderBottom:`1px solid rgba(255,255,255,0.07)`}}>
-        {TABS.map(t=>(
-          <button key={t} onClick={()=>setTab(t)} style={{
-            padding:"12px 20px",background:"transparent",border:"none",
-            borderBottom:`2px solid ${tab===t?"#3ECF6A":"transparent"}`,
-            color:tab===t?"#3ECF6A":"#94A3B8",
-            fontFamily:"'DM Sans', sans-serif",fontSize:"13px", fontWeight: 600,
-            cursor:"pointer",transition:"all 0.2s",marginBottom:"-1px",
-            display:"flex",alignItems:"center",gap:"8px",
-          }}>
-            {t}
-            {t==="Pending Approvals" && (
-              <span className="badge-amber" style={{ padding: '2px 6px' }}>3</span>
-            )}
-          </button>
-        ))}
+      {/* TABS */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: `0.5px solid ${C.border}` }}>
+        {TABS.map(t => <button key={t} onClick={() => setTab(t)} style={{ padding: "12px 20px", background: "transparent", border: "none", borderBottom: `2px solid ${tab === t ? C.yellow : "transparent"}`, color: tab === t ? C.yellowDark : C.textMid, fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "all 0.2s", marginBottom: "-1px", display: "flex", alignItems: "center", gap: 8 }}>{t}{t === "Pending Approvals" && approvalStats.pending > 0 && <span style={{ padding: "2px 6px", borderRadius: 100, background: C.amberBg, color: C.amber, fontSize: 10, fontWeight: 500 }}>{approvalStats.pending}</span>}</button>)}
       </div>
 
-      {/* ══ ALERTS TAB ══ */}
-      {tab==="Alerts" && (
-        <motion.div key="alerts" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          {/* filter row */}
-          <div style={{display:"flex",gap:"8px",marginBottom:"16px", alignItems: 'center'}}>
-            {["all","success","warning","error","info"].map(f=>{
-              const active = alertFilter===f;
-              const meta = f!=="all"?alertMeta[f]:null;
-              return (
-                <button key={f} onClick={()=>setAlertFilter(f)} style={{
-                  padding:"6px 16px",borderRadius:"100px",cursor:"pointer",
-                  fontFamily:"'JetBrains Mono', monospace",fontSize:"11px", fontWeight: 600, textTransform:"uppercase",
-                  border:`1px solid ${active?(meta?.color??"#3ECF6A"):"transparent"}`,
-                  background:active?(meta?meta.bg:"rgba(62,207,106,0.1)"):"rgba(255,255,255,0.05)",
-                  color:active?(meta?.color??"#3ECF6A"):"#94A3B8",transition:"all 0.2s",
-                }}>{f}</button>
-              );
-            })}
-            <div style={{marginLeft:"auto",fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",display:"flex",alignItems:"center",gap:"6px"}}>
-              <Filter style={{ width: '12px', height: '12px' }}/> {filteredAlerts.length} ALERTS
-            </div>
-          </div>
-
-          <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-            <AnimatePresence>
-              {filteredAlerts.map((a,i)=>{
-                const m = alertMeta[a.type];
-                const Icon = m.icon;
-                const isOpen = expanded===i;
-                return (
-                  <motion.div key={i}
-                    initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} exit={{opacity:0}}
-                    transition={{delay:i*0.05}}
-                    onClick={()=>setExpanded(isOpen?null:i)}
-                    className="glass-card-db"
-                    style={{
-                      borderLeft:`3px solid ${m.color}`, padding:"16px 20px",
-                      cursor:"pointer", position:"relative", overflow:"hidden", transition:"all 0.2s",
-                      borderColor: isOpen ? m.border : 'rgba(255,255,255,0.07)',
-                      background: isOpen ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)'
-                    }}
-                    onMouseOver={(e) => { if (!isOpen) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
-                    onMouseOut={(e) => { if (!isOpen) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
-                  >
-                    <div style={{display:"flex",alignItems:"flex-start",gap:"16px"}}>
-                      <div style={{ width:"40px",height:"40px",borderRadius:"10px",flexShrink:0, background:m.bg, display:"flex",alignItems:"center",justifyContent:"center", color: m.color }}>
-                        <Icon style={{ width: '18px', height: '18px' }}/>
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
-                          <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"15px",fontWeight:600,color:"#F1F5F9"}}>{a.title}</span>
-                          <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",flexShrink:0,marginLeft:"12px"}}>{a.time}</span>
-                        </div>
-                        <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",lineHeight:1.6,margin:0}}>{a.desc}</p>
-                      </div>
-                    </div>
-
-                    <AnimatePresence>
-                      {isOpen && (
-                        <motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}} transition={{duration:0.2}} style={{overflow:"hidden"}}>
-                          <div style={{marginTop:"16px",paddingTop:"16px",borderTop:`1px solid rgba(255,255,255,0.05)`, display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"12px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-                              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569"}}>Regulatory basis:</span>
-                              <span style={{ padding:"4px 12px",borderRadius:"100px", background:m.bg,border:`1px solid ${m.border}`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:m.color,textTransform: 'uppercase'}}>{a.rule}</span>
-                            </div>
-                            <button className="btn-primary-db" style={{ display:"flex",alignItems:"center",gap:"8px", padding:"8px 16px",fontSize:"11px" }}>
-                              {a.action} <ChevronRight style={{ width: '12px', height: '12px' }}/>
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ══ ACTIVE RULES TAB ══ */}
-      {tab==="Active Rules" && (
-        <motion.div key="rules" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <div className="glass-card-db" style={{ padding: 0, overflow:"hidden" }}>
-            <div style={{position:"relative"}}>
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#3ECF6A,transparent)`, opacity: 0.5}}/>
-            </div>
-            <div style={{padding:"16px 24px",borderBottom:`1px solid rgba(255,255,255,0.07)`, display:"flex",alignItems:"center",justifyContent:"space-between", background: 'rgba(255,255,255,0.02)'}}>
-              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"14px",fontWeight:600,color:"#3ECF6A",letterSpacing:"0.1em",textTransform:"uppercase"}}>
-                Regulatory Rule Engine
-              </span>
-              <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:"#475569",display:"flex",alignItems:"center",gap:"6px"}}>
-                <Zap style={{ width: '12px', height: '12px', color: '#3ECF6A' }}/> AUTO-ENFORCED IN REAL-TIME
-              </span>
-            </div>
-
-            {RULES.map((r,i)=>{
-              const sm = statusMeta[r.status];
-              const Icon = r.icon;
-              return (
-                <motion.div key={r.label}
-                  initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.05}}
-                  style={{
-                    padding:"20px 24px",borderBottom:`1px solid rgba(255,255,255,0.05)`,
-                    display:"flex",alignItems:"center",gap:"16px",
-                    transition:"background 0.2s",cursor:"pointer",
-                  }}
-                  onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                  onMouseOut={(e: any) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{
-                    width:"40px",height:"40px",borderRadius:"10px",flexShrink:0,
-                    background:"rgba(62,207,106,0.1)", display:"flex",alignItems:"center",justifyContent:"center", color: '#3ECF6A'
-                  }}>
-                    <Icon style={{ width: '18px', height: '18px' }}/>
+      {/* ALERTS */}
+      {tab === "Alerts" && <motion.div key="alerts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+          {["all", "success", "warning", "error", "info"].map(f => { const active = alertFilter === f; const meta = f !== "all" ? alertMeta[f] : null; return <button key={f} onClick={() => setAlertFilter(f)} style={{ padding: "6px 16px", borderRadius: 100, cursor: "pointer", fontSize: 11, fontWeight: 500, textTransform: "uppercase", border: `0.5px solid ${active ? (meta?.color ?? C.textMain) : C.border}`, background: active ? (meta ? meta.bg : C.textMain) : C.white, color: active ? (meta?.color ?? C.yellow) : C.textMid, transition: "all 0.2s" }}>{f}</button>; })}
+          <div style={{ marginLeft: "auto", fontSize: 11, color: C.textFaint, display: "flex", alignItems: "center", gap: 6 }}><Filter style={{ width: 12, height: 12 }} /> {filteredAlerts.length} alerts</div>
+        </div>
+        {loading ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48, color: C.textFaint }}><Loader2 style={{ width: 24, height: 24 }} className="animate-spin" /><span style={{ fontSize: 14, marginLeft: 12 }}>Loading audit logs...</span></div>
+          : filteredAlerts.length === 0 ? <div style={{ textAlign: "center", padding: 48, color: C.textMid, fontSize: 14 }}>No audit logs found. Activity will appear here as actions are performed.</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}><AnimatePresence>{filteredAlerts.map((a, i) => { const m = alertMeta[a.type] || alertMeta.info; const Icon = m.icon; const isOpen = expanded === i; return (
+              <motion.div key={a._id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ delay: i * 0.05 }} onClick={() => setExpanded(isOpen ? null : i)} style={{ padding: "16px 20px", cursor: "pointer", position: "relative", overflow: "hidden", transition: "all 0.2s", border: isOpen ? `0.5px solid ${m.border}` : `0.5px solid ${C.border}`, borderLeft: `3px solid ${m.color}`, background: isOpen ? C.creamDeep : C.white, borderRadius: 12 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: m.bg, display: "flex", alignItems: "center", justifyContent: "center", color: m.color }}><Icon style={{ width: 18, height: 18 }} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 15, fontWeight: 500, color: C.textMain }}>{a.title || a.action}</span><span style={{ fontSize: 11, color: C.textFaint, flexShrink: 0, marginLeft: 12 }}>{formatTimeAgo(a.createdAt)}</span></div>
+                    <p style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6, margin: 0 }}>{a.description}</p>
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"8px"}}>
-                      <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"15px",fontWeight:600,color:"#F1F5F9"}}>{r.label}</span>
-                      <span style={{ padding:"4px 10px",borderRadius:"100px", background:sm.bg,border:`1px solid ${sm.bg}`, fontFamily:"'JetBrains Mono', monospace",fontSize:"9px",fontWeight: 600, color:sm.color, textTransform:"uppercase", display:"flex",alignItems:"center",gap:"6px" }}>
-                        {r.status==="active"&&<span style={{width:"6px",height:"6px",borderRadius:"50%",background:sm.color}}/>}
-                        {sm.label}
-                      </span>
-                    </div>
-                    <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",margin:0,lineHeight:1.5}}>{r.desc}</p>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0, paddingRight: '16px'}}>
-                    <div style={{fontFamily:"'DM Sans', sans-serif",fontSize:"11px",color:"#475569",marginBottom:"4px"}}>Last check</div>
-                    <div style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"12px",color:"#3ECF6A"}}>{r.lastCheck}</div>
-                  </div>
-                  {r.status==="review" && (
-                    <button className="btn-ghost-db" style={{ padding:"8px 16px", color:"#F59E0B", gap:"6px", background: 'rgba(245,158,11,0.1)' }}>
-                      <Eye style={{ width: '14px', height: '14px' }}/> Review
-                    </button>
-                  )}
-                  {r.status!=="review" && (
-                    <ExternalLink style={{ width: '16px', height: '16px', color: '#475569', flexShrink:0 }}/>
-                  )}
-                </motion.div>
-              );
-            })}
+                </div>
+                <AnimatePresence>{isOpen && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: "hidden" }}><div style={{ marginTop: 16, paddingTop: 16, borderTop: `0.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 12, color: C.textFaint }}>Regulatory basis:</span><span style={{ padding: "4px 12px", borderRadius: 100, background: m.bg, border: `0.5px solid ${m.border}`, fontSize: 10, fontWeight: 500, color: m.color, textTransform: "uppercase" }}>{a.rule || "General"}</span></div><button style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", fontSize: 11, background: C.textMain, color: C.yellow, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{a.actionLabel || "View"} <ChevronRight style={{ width: 12, height: 12 }} /></button></div></motion.div>}</AnimatePresence>
+              </motion.div>); })}</AnimatePresence></div>}
+      </motion.div>}
 
-            <div style={{padding:"16px", background:"rgba(255,255,255,0.02)", fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569",textAlign:"center"}}>
-              Rules enforced across WhatsApp · Email · SMS · Voice · All channels
-            </div>
-          </div>
-        </motion.div>
-      )}
+      {/* ACTIVE RULES */}
+      {tab === "Active Rules" && <motion.div key="rules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <div style={{ padding: 0, overflow: "hidden", background: C.white, border: `0.5px solid ${C.border}`, borderRadius: 12 }}>
+          <div style={{ position: "relative" }}><div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg,transparent,${C.yellow},transparent)`, opacity: 0.6 }} /></div>
+          <div style={{ padding: "16px 24px", borderBottom: `0.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.creamDeep }}><span style={{ fontSize: 14, fontWeight: 500, color: C.yellowDark, letterSpacing: "0.1em", textTransform: "uppercase" }}>Regulatory Rule Engine</span><span style={{ fontSize: 11, color: C.textFaint, display: "flex", alignItems: "center", gap: 6 }}><Zap style={{ width: 12, height: 12, color: C.yellowDark }} /> Auto-enforced in real-time</span></div>
+          {RULES.map((r, i) => { const sm = statusMeta[r.status]; const Icon = r.icon; return (
+            <motion.div key={r.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} style={{ padding: "20px 24px", borderBottom: `0.5px solid ${C.border}`, display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: C.yellowBg, display: "flex", alignItems: "center", justifyContent: "center", color: C.yellowDark }}><Icon style={{ width: 18, height: 18 }} /></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}><span style={{ fontSize: 15, fontWeight: 500, color: C.textMain }}>{r.label}</span><span style={{ padding: "4px 10px", borderRadius: 100, background: sm.bg, fontSize: 9, fontWeight: 500, color: sm.color, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>{r.status === "active" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: sm.color }} />}{sm.label}</span></div>
+                <p style={{ fontSize: 13, color: C.textMid, margin: 0, lineHeight: 1.5 }}>{r.desc}</p>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0, paddingRight: 16 }}><div style={{ fontSize: 11, color: C.textFaint, marginBottom: 4 }}>Last check</div><div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.yellowDark }}>{r.lastCheck}</div></div>
+              {r.status === "review" ? <button style={{ padding: "8px 16px", color: C.yellowDark, gap: 6, background: C.yellowBg, display: "flex", alignItems: "center", border: `0.5px solid ${C.yellowBorder}`, borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 500 }}><Eye style={{ width: 14, height: 14 }} /> Review</button> : <ExternalLink style={{ width: 16, height: 16, color: C.textFaint, flexShrink: 0 }} />}
+            </motion.div>); })}
+          <div style={{ padding: 16, background: C.creamDeep, fontSize: 12, color: C.textFaint, textAlign: "center" }}>Rules enforced across WhatsApp · Email · SMS · Voice · All channels</div>
+        </div>
+      </motion.div>}
 
-      {/* ══ PENDING APPROVALS TAB ══ */}
-      {tab==="Pending Approvals" && (
-        <motion.div key="approvals" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-          <div style={{ background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.2)", borderRadius:"12px",padding:"16px 24px",marginBottom:"24px", display:"flex",alignItems:"flex-start",gap:"16px" }}>
-            <AlertTriangle style={{ width: '20px', height: '20px', color:"#F59E0B",flexShrink:0,marginTop:"2px"}}/>
-            <div>
-              <span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"13px",fontWeight:600,color:"#F59E0B",letterSpacing:"0.1em",textTransform:"uppercase", display: 'block', marginBottom: '8px'}}>Action Required</span>
-              <p style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8",margin:0,lineHeight:1.6}}>
-                3 message templates are pending compliance approval. Templates cannot be used in campaigns until approved. TRAI mandates review within <span style={{color:"#F59E0B", fontWeight: 600}}>24 hours</span>.
-              </p>
-            </div>
-          </div>
-
-          <div className="glass-card-db" style={{ padding: 0, overflow:"hidden" }}>
-            <div style={{position:"relative"}}>
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,#F59E0B,transparent)`, opacity: 0.5 }}/>
-            </div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse"}}>
-                <thead>
-                  <tr>
-                    {["Template ID","Name","Channel","Submitted By","Waiting","Risk Level","Actions"].map(h=>(
-                      <th key={h} style={{ padding:"16px 24px",textAlign:"left", fontFamily:"'DM Sans', sans-serif",fontSize:"10px", fontWeight: 600, letterSpacing:"0.1em", color:"#475569",textTransform:"uppercase", borderBottom:`1px solid rgba(255,255,255,0.07)`,whiteSpace:"nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {PENDING.map((p,i)=>{
-                    const rm = riskMeta[p.risk];
-                    const cm = channelMeta[p.channel];
-                    return (
-                      <motion.tr key={p.id} initial={{opacity:0,x:-8}} animate={{opacity:1,x:0}} transition={{delay:i*0.05}} style={{borderBottom:"1px solid rgba(255,255,255,0.05)",cursor:"pointer"}} onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'} onMouseOut={(e: any) => e.currentTarget.style.background = 'transparent'}>
-                        <td style={{padding:"16px 24px"}}><span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"12px",color:"#60A5FA"}}>{p.id}</span></td>
-                        <td style={{padding:"16px 24px"}}><span style={{fontFamily:"'DM Sans', sans-serif",fontSize:"14px",color:"#F1F5F9",fontWeight:500}}>{p.name}</span></td>
-                        <td style={{padding:"16px 24px"}}><span style={{ padding:"4px 10px",borderRadius:"100px", background:`rgba(255,255,255,0.05)`, border:`1px solid rgba(255,255,255,0.1)`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:cm.color, textTransform:"uppercase" }}>{p.channel}</span></td>
-                        <td style={{padding:"16px 24px"}}><span style={{fontFamily: "'DM Sans', sans-serif", fontSize:"13px",color:"#94A3B8"}}>{p.submittedBy}</span></td>
-                        <td style={{padding:"16px 24px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                            <Clock style={{ width: '12px', height: '12px', color:"#475569"}}/>
-                            <span style={{fontFamily:"'JetBrains Mono', monospace",fontSize:"11px",color:p.age==="1d"?"#EF4444":"#F59E0B"}}>{p.age}</span>
-                          </div>
-                        </td>
-                        <td style={{padding:"16px 24px"}}>
-                          <span style={{ display:"inline-flex",alignItems:"center",gap:"6px", padding:"4px 10px",borderRadius:"100px", background:`${rm.color}15`, border:`1px solid ${rm.color}30`, fontFamily:"'JetBrains Mono', monospace",fontSize:"10px", fontWeight: 600, color:rm.color, textTransform:"uppercase" }}>
-                            <span style={{width:"6px",height:"6px",borderRadius:"50%",background:rm.color}}/> {p.risk}
-                          </span>
-                        </td>
-                        <td style={{padding:"16px 24px"}}>
-                          <div style={{display:"flex",gap:"8px"}}>
-                            <button className="btn-ghost-db" style={{ padding:"6px 12px", color:"#3ECF6A", gap:"6px", background: 'rgba(62,207,106,0.1)', border: '1px solid rgba(62,207,106,0.3)' }}>
-                              <CheckCircle style={{ width: '12px', height: '12px' }}/> Approve
-                            </button>
-                            <button className="btn-ghost-db" style={{ padding:"6px 12px", color:"#EF4444", gap:"6px", background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
-                              <Ban style={{ width: '12px', height: '12px' }}/> Reject
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </tbody>
+      {/* PENDING APPROVALS */}
+      {tab === "Pending Approvals" && <motion.div key="approvals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <div style={{ background: C.yellowBg, border: `0.5px solid ${C.yellowBorder}`, borderRadius: 12, padding: "16px 24px", marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 16 }}>
+          <AlertTriangle style={{ width: 20, height: 20, color: C.yellowDark, flexShrink: 0, marginTop: 2 }} />
+          <div><span style={{ fontSize: 13, fontWeight: 500, color: C.yellowDark, letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Action Required</span><p style={{ fontSize: 13, color: C.textMid, margin: 0, lineHeight: 1.6 }}>{approvalStats.pending} template{approvalStats.pending !== 1 ? "s are" : " is"} pending approval. TRAI mandates review within <span style={{ color: C.yellowDark, fontWeight: 500 }}>24 hours</span>.</p></div>
+        </div>
+        {loading ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48, color: C.textFaint }}><Loader2 style={{ width: 24, height: 24 }} className="animate-spin" /></div>
+          : pendingApprovals.length === 0 ? <div style={{ padding: 48, textAlign: "center", background: C.white, border: `0.5px solid ${C.border}`, borderRadius: 12 }}><CheckCircle style={{ width: 32, height: 32, color: C.green, margin: "0 auto 12px" }} /><div style={{ color: C.green, fontWeight: 500, marginBottom: 4 }}>All clear</div><div style={{ fontSize: 14, color: C.textMid }}>No pending approvals.</div></div>
+            : <div style={{ background: C.white, border: `0.5px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr>{["ID", "Name", "Channel", "Submitted By", "Waiting", "Risk", "Actions"].map(h => <th key={h} style={{ padding: "16px 24px", textAlign: "left", fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", color: C.textFaint, textTransform: "uppercase", borderBottom: `0.5px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <tbody>{pendingApprovals.map((p, i) => { const rm = riskMeta[p.risk] || riskMeta.low; const cm = channelMeta[p.channel] || channelMeta.email; const busy = actionLoading === p._id; return (
+                  <motion.tr key={p._id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} style={{ borderBottom: `0.5px solid ${C.border}` }}>
+                    <td style={{ padding: "16px 24px" }}><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.blue }}>{p._id.slice(-6).toUpperCase()}</span></td>
+                    <td style={{ padding: "16px 24px" }}><span style={{ fontSize: 14, color: C.textMain, fontWeight: 500 }}>{p.name || `${p.relatedType} Approval`}</span></td>
+                    <td style={{ padding: "16px 24px" }}><span style={{ padding: "4px 10px", borderRadius: 100, background: cm.bg, border: `0.5px solid ${cm.border}`, fontSize: 10, fontWeight: 500, color: cm.color, textTransform: "uppercase" }}>{p.channel}</span></td>
+                    <td style={{ padding: "16px 24px" }}><span style={{ fontSize: 13, color: C.textMid }}>{p.submittedBy || "Unknown"}</span></td>
+                    <td style={{ padding: "16px 24px" }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Clock style={{ width: 12, height: 12, color: C.textFaint }} /><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: formatTimeAgo(p.createdAt).includes("d") ? C.red : C.yellowDark }}>{formatTimeAgo(p.createdAt)}</span></div></td>
+                    <td style={{ padding: "16px 24px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 100, background: rm.bg, border: `0.5px solid ${rm.border}`, fontSize: 10, fontWeight: 500, color: rm.color, textTransform: "uppercase" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: rm.color }} /> {p.risk}</span></td>
+                    <td style={{ padding: "16px 24px" }}><div style={{ display: "flex", gap: 8 }}>
+                      <button disabled={busy} onClick={e => { e.stopPropagation(); handleApproval(p._id, "Approved"); }} style={{ padding: "6px 12px", color: C.green, gap: 6, background: C.greenBg, border: `0.5px solid ${C.greenBorder}`, display: "flex", alignItems: "center", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, opacity: busy ? 0.5 : 1 }}>{busy ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />} Approve</button>
+                      <button disabled={busy} onClick={e => { e.stopPropagation(); handleApproval(p._id, "Rejected"); }} style={{ padding: "6px 12px", color: C.red, gap: 6, background: C.redBg, border: `0.5px solid ${C.redBorder}`, display: "flex", alignItems: "center", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, opacity: busy ? 0.5 : 1 }}><Ban style={{ width: 12, height: 12 }} /> Reject</button>
+                    </div></td>
+                  </motion.tr>); })}</tbody>
               </table>
-            </div>
-            <div style={{padding:"16px 24px",borderTop:`1px solid rgba(255,255,255,0.05)`, background:"rgba(255,255,255,0.02)",fontFamily:"'DM Sans', sans-serif",fontSize:"12px",color:"#475569", display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span>Approved templates are auto-submitted to TRAI DLT portal</span>
-              <span style={{color:"#F59E0B"}}>SLA: 24h review window</span>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
+              <div style={{ padding: "16px 24px", borderTop: `0.5px solid ${C.border}`, background: C.creamDeep, fontSize: 12, color: C.textFaint, display: "flex", alignItems: "center", justifyContent: "space-between" }}><span>Approved templates are auto-submitted to TRAI DLT portal</span><span style={{ color: C.yellowDark }}>SLA: 24h review window</span></div>
+            </div>}
+      </motion.div>}
     </div>
   );
 }

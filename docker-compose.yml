@@ -1,0 +1,225 @@
+# ─────────────────────────────────────────────────────────────
+# OmniChannel Communication Platform — Docker Compose
+# Services: MongoDB, Backend API, Frontend (nginx), Redis, ML Service, Prometheus, Grafana
+# ─────────────────────────────────────────────────────────────
+
+version: '3.8'
+
+services:
+  # ── MongoDB ────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: omnichannel-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-omnichannel2024}
+      MONGO_INITDB_DATABASE: omnichannel
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    networks:
+      - omnichannel-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: omnichannel-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - omnichannel-network
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: omnichannel-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-omnichannel2024}@mongodb:27017/omnichannel?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # Gmail OAuth2 (set in .env)
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN}
+      GMAIL_ADDRESS: ${GMAIL_ADDRESS}
+      # WhatsApp (set in .env)
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      WEBHOOK_VERIFY_TOKEN: ${WEBHOOK_VERIFY_TOKEN}
+      # AI Agent
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      # Vector DB (Pinecone)
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX: ${PINECONE_INDEX:-omnichannel-memory}
+      PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT:-us-east-1}
+      # OpenAI (for embeddings)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Redis
+      REDIS_URL: redis://redis:6379
+      # ML Service
+      ML_SERVICE_URL: http://ml-service:8000
+      # Agent service auth
+      AGENT_SERVICE_KEY: ${AGENT_SERVICE_KEY:-omnichannel-agent-service-key-2024}
+      EMPLOYER_MONGO_ID: ${EMPLOYER_MONGO_ID}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      # Frontend URL for Socket.IO CORS
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - omnichannel-network
+
+  # ── ML Service (Python FastAPI) ────────────────────────────
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: omnichannel-ml-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    networks:
+      - omnichannel-network
+
+  # ── Prometheus ─────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: omnichannel-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - omnichannel-network
+
+  # ── Grafana ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: omnichannel-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - omnichannel-network
+
+  # ── WhatsApp Agent ─────────────────────────────────────────
+  wa-agent:
+    build:
+      context: .
+      dockerfile: Backend/Dockerfile
+    container_name: omnichannel-wa-agent
+    restart: unless-stopped
+    working_dir: /app/mcp-server
+    command: node agents/whatsappAgent.mjs
+    ports:
+      - "5002:5002"
+    environment:
+      API_BASE: http://backend:5000/api
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-omnichannel2024}@mongodb:27017/omnichannel?authSource=admin
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      EMPLOYER_MONGO_ID: ${EMPLOYER_MONGO_ID}
+      AGENT_SERVICE_KEY: ${AGENT_SERVICE_KEY:-omnichannel-agent-service-key-2024}
+      WA_AGENT_PORT: 5002
+    depends_on:
+      - backend
+    networks:
+      - omnichannel-network
+
+  # ── Gmail Agent ──────────────────────────────────────────
+  gmail-agent:
+    build:
+      context: .
+      dockerfile: Backend/Dockerfile
+    container_name: omnichannel-gmail-agent
+    restart: unless-stopped
+    working_dir: /app/mcp-server
+    command: node agents/gmailAgent.mjs
+    ports:
+      - "5001:5001"
+    environment:
+      API_BASE: http://backend:5000/api
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-omnichannel2024}@mongodb:27017/omnichannel?authSource=admin
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN}
+      GMAIL_ADDRESS: ${GMAIL_ADDRESS}
+      EMPLOYER_MONGO_ID: ${EMPLOYER_MONGO_ID}
+      AGENT_SERVICE_KEY: ${AGENT_SERVICE_KEY:-omnichannel-agent-service-key-2024}
+      AGENT_PORT: 5001
+    depends_on:
+      - backend
+    networks:
+      - omnichannel-network
+
+  # ── Frontend (nginx) ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: omnichannel-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - omnichannel-network
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ── Network ──────────────────────────────────────────────────
+networks:
+  omnichannel-network:
+    driver: bridge

@@ -2,19 +2,36 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import connectDB from '../config/db.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '../../Backend/.env') });
+
 import { logAgentEvent } from '../services/analyticsLogger.mjs';
 import { askGroq } from '../utils/groq.mjs';
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const envPath = resolve(__dirname, '../../Backend/.env');
+console.log(`[ENV] Loading from: ${envPath}`);
+console.log(`[ENV] EMPLOYER_MONGO_ID = ${process.env.EMPLOYER_MONGO_ID}`);
+
 const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
 const EMPLOYER_ID = process.env.EMPLOYER_MONGO_ID;
+const SERVICE_KEY = process.env.AGENT_SERVICE_KEY;
 const PORT = process.env.WA_AGENT_PORT || 5002;
+
+if (!EMPLOYER_ID) console.error('[FATAL] EMPLOYER_MONGO_ID is not set!');
+console.log(`[Config] Using employer: ${EMPLOYER_ID}`);
+
+const serviceHeaders = () => ({
+  'X-Service-Key': SERVICE_KEY,
+  'X-Employer-Id': EMPLOYER_ID,
+});
 
 await connectDB();
 
@@ -27,12 +44,18 @@ const generateReply = async (lastMessage, customerName, history = []) => {
 
   return askGroq(
     `You are a WhatsApp customer support agent for a bank.
-     Write a SHORT reply — max 2-3 sentences.
-     Be friendly and conversational. This is WhatsApp, not email.
-     No signatures. No "Dear customer". Just a natural helpful reply.`,
-    `${historyText ? 'Previous messages:\n' + historyText + '\n\n' : ''}
-     Customer: ${customerName || 'Customer'}
-     Latest message: ${lastMessage}`,
+     IMPORTANT: You MUST directly answer the customer's specific question or request.
+     If they ask about address change, answer about address change.
+     If they ask about credit limits, answer about credit limits.
+     If they ask about FD rates, answer about FD rates.
+     Do NOT give a generic greeting like "How can I help you?"
+     Write a SHORT, specific reply — max 2-3 sentences.
+     Be friendly and conversational. No signatures. No "Dear customer".`,
+    `${historyText ? 'Conversation so far:\n' + historyText + '\n\n' : ''}
+     Customer name: ${customerName || 'Customer'}
+     Customer's latest message: ${lastMessage}
+
+     Reply directly to what the customer is asking about:`,
     150
   );
 };
@@ -42,13 +65,14 @@ const sendWA = async (customerId, message) => {
     employerId: EMPLOYER_ID,
     customerId,
     message,
-  });
+  }, { headers: serviceHeaders() });
   return res.data;
 };
 
 const getUnreadChats = async () => {
   const res = await axios.get(`${API_BASE}/webhook/chats`, {
     params: { employerId: EMPLOYER_ID },
+    headers: serviceHeaders(),
   });
   const all = res.data.data || [];
   return all.filter(c => c.unreadCount > 0 || c.lastDirection === 'inbound');
@@ -58,6 +82,7 @@ const getHistory = async (customerId) => {
   try {
     const res = await axios.get(`${API_BASE}/webhook/chats/${customerId}`, {
       params: { employerId: EMPLOYER_ID },
+      headers: serviceHeaders(),
     });
     return res.data.data || [];
   } catch {
@@ -67,7 +92,9 @@ const getHistory = async (customerId) => {
 
 const getCustomer = async (customerId) => {
   try {
-    const res = await axios.get(`${API_BASE}/customers/${customerId}`);
+    const res = await axios.get(`${API_BASE}/customers/${customerId}`, {
+      headers: serviceHeaders(),
+    });
     return res.data.data || res.data || null;
   } catch (err) {
     console.error(`[getCustomer] ${customerId} →`, err.response?.status ?? err.message);
@@ -316,14 +343,19 @@ app.post('/wa-agent/chats/suggest', async (req, res) => {
     const latestInbound = [...history].reverse().find(m => m.direction === 'inbound');
     const customerName = latestInbound?.customerId?.name || 'Customer';
 
+    const historyText = history.slice(-5).map(m =>
+      `${m.direction === 'inbound' ? customerName : 'Support'}: ${m.body}`
+    ).join('\n');
+
     const systemPrompt = customMessage
       ? `You are a WhatsApp support agent. Rewrite this as a short friendly WhatsApp message (max 2-3 sentences): "${customMessage}"`
       : `You are a WhatsApp customer support agent for a bank.
-         Write a SHORT helpful reply — max 2-3 sentences. Be conversational.`;
+         IMPORTANT: Directly answer the customer's specific question. Do NOT give generic greetings.
+         Write a SHORT, specific reply — max 2-3 sentences. Be conversational. No signatures.`;
 
     const ai = await askGroq(
       systemPrompt,
-      `Customer: ${customerName}\nLatest message: ${latestInbound?.body || 'No message'}`,
+      `${historyText ? 'Conversation:\n' + historyText + '\n\n' : ''}Customer: ${customerName}\nCustomer's latest message: ${latestInbound?.body || 'No message'}\n\nReply specifically to their question:`,
       150
     );
 

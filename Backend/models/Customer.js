@@ -61,6 +61,19 @@ const CustomerSchema = new mongoose.Schema(
       chat_uid: { type: String, sparse: true },
       social_id: { type: String, sparse: true },
     },
+    healthScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 100,
+      index: true,
+    },
+    healthStatus: {
+      type: String,
+      enum: ['Healthy', 'Watchlist', 'At Risk'],
+      default: 'Healthy',
+      index: true,
+    },
     language: {
       type: String,
       default: "en",
@@ -77,6 +90,15 @@ const CustomerSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    consentStatus: {
+      marketing: { type: Boolean, default: false },
+      transactional: { type: Boolean, default: true },
+      dnc: { type: Boolean, default: false },
+    },
+    segmentationTags: [{
+      type: String,
+      trim: true
+    }],
   },
   { timestamps: true },
 );

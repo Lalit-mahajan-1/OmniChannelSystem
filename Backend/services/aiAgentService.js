@@ -3,7 +3,18 @@
 //        Add GROQ_API_KEY=your_key to Backend/.env
 //        Get free key at: https://console.groq.com
 const Groq = require('groq-sdk');
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Lazy-initialise the Groq client so the server can start even without a key
+let _groq = null;
+const getGroq = () => {
+  if (!_groq) {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY is not set. Get a free key at https://console.groq.com');
+    }
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return _groq;
+};
 
 /**
  * Generate an AI reply to a customer email/message.
@@ -43,6 +54,26 @@ const generateAIReply = async (
     }
   }
 
+  // ── Step 1b: Fetch RAG knowledge base context (non-blocking) ──
+  let kbContext = '';
+  try {
+    const ragService = require('../rag/ragService');
+    const customerQuery = customerEmail || subject || '';
+    if (customerQuery.length > 10) {
+      const ragResults = await ragService.retrieveContext(customerQuery, {
+        topK: 3,
+        namespace: 'knowledge-base',
+      });
+      if (ragResults && ragResults.length > 0) {
+        kbContext = `\nKNOWLEDGE BASE CONTEXT (use this to answer accurately):\n${
+          ragResults.map(r => `- ${r.text || r.content || JSON.stringify(r.metadata)}`).join('\n')
+        }\n`;
+      }
+    }
+  } catch (err) {
+    console.warn('[AI] RAG context unavailable:', err.message);
+  }
+
   // ── Step 2: Build prompt ───────────────────────────────────────────
   const historyText = history.length > 0
     ? `\nPrevious conversation:\n${history.map(h =>
@@ -51,7 +82,8 @@ const generateAIReply = async (
     : '';
 
   const prompt = `You are a helpful customer support agent. Reply professionally and concisely.
-${contextBlock}${historyText}
+If knowledge base context is provided, use it to give accurate answers.
+${contextBlock}${kbContext}${historyText}
 Customer name: ${customerName}
 Subject: ${subject}
 Customer message: ${customerEmail}
@@ -60,7 +92,7 @@ Write a helpful, friendly reply. Keep it under 150 words. Do not include a subje
 
   // ── Step 3: Call Groq (free) ───────────────────────────────────────
   try {
-    const response = await groq.chat.completions.create({
+    const response = await getGroq().chat.completions.create({
       model: 'llama-3.1-8b-instant',
       max_tokens: 300,
       messages: [{ role: 'user', content: prompt }]

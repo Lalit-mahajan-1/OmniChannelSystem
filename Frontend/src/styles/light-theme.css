@@ -1,0 +1,301 @@
+/* Light Theme Global Overrides */
+
+/* Force light theme on all elements */
+* {
+  --page-bg: #F5F7FA !important;
+  --card-bg: #FFFFFF !important;
+  --text-primary: #111827 !important;
+  --text-secondary: #6B7280 !important;
+  --border-color: #E5E7EB !important;
+}
+
+/* Page backgrounds */
+body {
+  background: #F5F7FA !important;
+  color: #111827 !important;
+}
+
+/* Override ALL dark backgrounds */
+div[style*="background"][style*="#0"],
+div[style*="background"][style*="rgb(10"],
+div[style*="background"][style*="rgb(13"],
+div[style*="background: linear-gradient(135deg, #161b22"],
+div[style*="background: linear-gradient(180deg,#111318"],
+section[style*="background: #0A0B0D"],
+main[style*="background: #0A0B0D"] {
+  background: #F5F7FA !important;
+}
+
+/* Card backgrounds */
+div[style*="background: linear-gradient(135deg, #161b22 0%, #0d1117 100%)"],
+div[style*="background: rgba(255,255,255,0.04)"],
+div[style*="background: rgba(255,255,255,0.06)"],
+div[style*="background: rgba(255,255,255,0.08)"] {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+
+/* Text color overrides - Primary */
+div[style*="color: #f1f5f9"],
+div[style*="color: #F1F5F9"],
+div[style*="color: rgb(241, 245, 249)"],
+span[style*="color: #f1f5f9"],
+span[style*="color: #F1F5F9"],
+h1[style*="color: #f1f5f9"],
+h2[style*="color: #f1f5f9"],
+h3[style*="color: #f1f5f9"],
+h4[style*="color: #f1f5f9"],
+p[style*="color: #f1f5f9"] {
+  color: #111827 !important;
+}
+
+/* Text color overrides - Secondary */
+div[style*="color: #94a3b8"],
+div[style*="color: #94A3B8"],
+div[style*="color: #64748b"],
+div[style*="color: #64748B"],
+div[style*="color: #475569"],
+span[style*="color: #94a3b8"],
+span[style*="color: #64748b"],
+span[style*="color: #475569"],
+p[style*="color: #94a3b8"],
+p[style*="color: #64748b"],
+p[style*="color: #475569"] {
+  color: #6B7280 !important;
+}
+
+/* Border overrides */
+div[style*="border"][style*="rgba(255,255,255,"],
+div[style*="borderBottom"][style*="rgba(255,255,255,"],
+div[style*="borderTop"][style*="rgba(255,255,255,"],
+div[style*="borderRight"][style*="rgba(255,255,255,"],
+div[style*="borderLeft"][style*="rgba(255,255,255,"] {
+  border-color: #E5E7EB !important;
+}
+
+/* Input backgrounds */
+input[style*="background: rgba(255,255,255,0.04)"],
+input[style*="background: rgba(255,255,255,0.06)"],
+textarea[style*="background: rgba(255,255,255,0.04)"],
+textarea[style*="background: rgba(255,255,255,0.06)"],
+select[style*="background: rgba(255,255,255,0.04)"],
+select[style*="background: rgba(255,255,255,0.06)"] {
+  background: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+  color: #111827 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Button backgrounds */
+button[style*="background: rgba(255,255,255,0.06)"],
+button[style*="background: rgba(255,255,255,0.08)"],
+button[style*="background: rgba(255,255,255,0.1)"],
+button[style*="background: rgba(255,255,255,0.12)"] {
+  background: #F9FAFB !important;
+  color: #111827 !important;
+  border: 1px solid #E5E7EB !important;
+}
+
+button[style*="background: transparent"] {
+  color: #374151 !important;
+}
+
+/* Hover states */
+button:hover[style*="background: rgba(255,255,255"],
+div:hover[style*="background: rgba(255,255,255"] {
+  background: #F3F4F6 !important;
+}
+
+/* Table styles */
+table {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+}
+
+th {
+  background: #F9FAFB !important;
+  color: #111827 !important;
+  border-bottom: 1px solid #E5E7EB !important;
+  font-weight: 600 !important;
+}
+
+td {
+  border-bottom: 1px solid #F3F4F6 !important;
+  color: #374151 !important;
+}
+
+tr:hover {
+  background: #F9FAFB !important;
+}
+
+/* Badge backgrounds - Critical/Red */
+div[style*="background: rgba(239,68,68"],
+span[style*="background: rgba(239,68,68"],
+div[style*="background: linear-gradient(135deg, #ef4444"] {
+  background: #FEE2E2 !important;
+  color: #991B1B !important;
+  border: 1px solid #FCA5A5 !important;
+}
+
+/* Badge backgrounds - Warning/Orange */
+div[style*="background: rgba(245,158,11"],
+span[style*="background: rgba(245,158,11"],
+div[style*="background: linear-gradient(135deg, #f59e0b"] {
+  background: #FEF3C7 !important;
+  color: #92400E !important;
+  border: 1px solid #FCD34D !important;
+}
+
+/* Badge backgrounds - Info/Blue */
+div[style*="background: rgba(59,130,246"],
+div[style*="background: rgba(96,165,250"],
+span[style*="background: rgba(59,130,246"],
+span[style*="background: rgba(96,165,250"],
+div[style*="background: linear-gradient(135deg, #3b82f6"] {
+  background: #DBEAFE !important;
+  color: #1E40AF !important;
+  border: 1px solid #93C5FD !important;
+}
+
+/* Badge backgrounds - Success/Green - keep as yellow to match theme */
+div[style*="background: rgba(16,185,129"],
+div[style*="background: rgba(62,207,106"],
+span[style*="background: rgba(16,185,129"],
+span[style*="background: rgba(62,207,106"] {
+  background: #FFF3CD !important;
+  color: #B8860B !important;
+  border: 1px solid #FFE082 !important;
+}
+
+/* Info/Warning boxes */
+div[style*="background: rgba(96,165,250,0.1)"] {
+  background: #EFF6FF !important;
+  border: 1px solid #DBEAFE !important;
+  color: #1E40AF !important;
+}
+
+div[style*="background: rgba(245,158,11,0.1)"] {
+  background: #FFFBEB !important;
+  border: 1px solid #FEF3C7 !important;
+  color: #92400E !important;
+}
+
+/* Modal/Dropdown backgrounds */
+div[style*="boxShadow"][style*="rgba(0,0,0,0.5)"] {
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important;
+}
+
+/* Scrollbar for light theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F3F4F6;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Chart backgrounds */
+.recharts-wrapper {
+  background: #FFFFFF !important;
+}
+
+.recharts-surface {
+  background: #FFFFFF !important;
+}
+
+/* Notification bell */
+button[style*="Bell"] {
+  background: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+}
+
+/* Empty states */
+div[style*="opacity: 0.3"] {
+  opacity: 0.4 !important;
+}
+
+/* Focus states */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #FFC107 !important;
+  outline: 2px solid rgba(255, 193, 7, 0.15) !important;
+  outline-offset: 0 !important;
+}
+
+/* Disabled states */
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: #F3F4F6 !important;
+  color: #9CA3AF !important;
+  cursor: not-allowed !important;
+}
+
+/* Links */
+a {
+  color: #B8860B !important;
+}
+
+a:hover {
+  color: #7A5A00 !important;
+  text-decoration: underline !important;
+}
+
+/* Code blocks */
+code,
+pre {
+  background: #F3F4F6 !important;
+  color: #111827 !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 4px !important;
+}
+
+/* Tooltips */
+div[role="tooltip"] {
+  background: #111827 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 193, 7, 0.2) !important;
+  color: #111827 !important;
+}
+
+/* Priority badges specific colors */
+[style*='color: "#ef4444"'] {
+  color: #DC2626 !important;
+}
+
+[style*='color: "#f59e0b"'] {
+  color: #D97706 !important;
+}
+
+[style*='color: "#3b82f6"'] {
+  color: #2563EB !important;
+}
+
+[style*='color: "#10b981"'],
+[style*='color: "#3ecf6a"'] {
+  color: #B8860B !important;
+}
+

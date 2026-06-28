@@ -10,18 +10,21 @@ const {
   getChatHistory,
 } = require('../controllers/webhookController');
 
-// Meta webhook
-router.get('/whatsapp', verifyWebhook);
-router.post('/whatsapp', receiveMessage);
+const { authenticate, authorize, authenticateOrService } = require('../middleware/auth');
+const { webhookLimiter } = require('../middleware/rateLimiter');
+const { validateSendMessage } = require('../middleware/validate');
 
-// send message using stored employer/customer
-router.post('/messages/send', sendMessage);
+// ── Public: Meta Webhook (must remain unauthenticated) ────────────────────────
+// Meta sends GET for verification and POST for incoming messages
+router.get('/whatsapp', webhookLimiter, verifyWebhook);
+router.post('/whatsapp', webhookLimiter, receiveMessage);
 
-// direct backend replacement of Meta Graph API
-router.post('/messages/send-direct', sendDirectMessage);
+// ── Protected: Send messages (Employer or Agent service) ─────────────────────
+router.post('/messages/send', authenticateOrService, authorize('employer'), validateSendMessage, sendMessage);
+router.post('/messages/send-direct', authenticateOrService, authorize('employer'), sendDirectMessage);
 
-// chat history
-router.get('/chats', getAllChats);
-router.get('/chats/:customerId', getChatHistory);
+// ── Protected: Chat history (Employer or Agent service) ──────────────────────
+router.get('/chats', authenticateOrService, authorize('employer'), getAllChats);
+router.get('/chats/:customerId', authenticateOrService, authorize('employer'), getChatHistory);
 
 module.exports = router;

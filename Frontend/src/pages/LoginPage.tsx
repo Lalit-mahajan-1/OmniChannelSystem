@@ -37,7 +37,7 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--color-canvas-bg, #EDEEF0)',
+      background: '#FFF8E7',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -47,13 +47,13 @@ export default function LoginPage() {
       {/* Background Mesh Blobs */}
       <div className="mesh-blob" style={{
         position: 'absolute', top: '-10%', left: '-8%', width: '480px', height: '480px',
-        background: 'radial-gradient(circle, #AAFACB, transparent)', borderRadius: '50%',
+        background: 'radial-gradient(circle, #FFE082, transparent)', borderRadius: '50%',
         filter: 'blur(70px)', opacity: 0.5, pointerEvents: 'none', zIndex: 0
       }} />
       <div className="mesh-blob" style={{
         position: 'absolute', bottom: '-10%', right: '-8%', width: '360px', height: '360px',
-        background: 'radial-gradient(circle, #BEF0FF, transparent)', borderRadius: '50%',
-        filter: 'blur(60px)', opacity: 0.45, pointerEvents: 'none', zIndex: 0
+        background: 'radial-gradient(circle, #FFC107, transparent)', borderRadius: '50%',
+        filter: 'blur(60px)', opacity: 0.35, pointerEvents: 'none', zIndex: 0
       }} />
 
       <motion.div
@@ -74,7 +74,7 @@ export default function LoginPage() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
-            width: '44px', height: '44px', borderRadius: '12px', background: '#0D0D0D',
+            width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #FFC107, #B8860B)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 24px', color: 'white'
           }}>
@@ -109,7 +109,7 @@ export default function LoginPage() {
                   width: '100%', background: '#F7F8FA', border: '1px solid #E4E6EB', borderRadius: '12px',
                   padding: '12px 16px 12px 44px', fontSize: '15px', color: '#0D0D0D', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box'
                 }}
-                onFocus={(e) => { e.target.style.borderColor = '#3ECF6A'; e.target.style.background = '#FFFFFF'; e.target.style.boxShadow = '0 0 0 3px #D4FAE6'; }}
+                onFocus={(e) => { e.target.style.borderColor = '#FFC107'; e.target.style.background = '#FFFFFF'; e.target.style.boxShadow = '0 0 0 3px rgba(255,193,7,0.15)'; }}
                 onBlur={(e) => { e.target.style.borderColor = '#E4E6EB'; e.target.style.background = '#F7F8FA'; e.target.style.boxShadow = 'none'; }}
               />
             </div>
@@ -130,7 +130,7 @@ export default function LoginPage() {
                   width: '100%', background: '#F7F8FA', border: '1px solid #E4E6EB', borderRadius: '12px',
                   padding: '12px 44px 12px 44px', fontSize: '15px', color: '#0D0D0D', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box'
                 }}
-                onFocus={(e) => { e.target.style.borderColor = '#3ECF6A'; e.target.style.background = '#FFFFFF'; e.target.style.boxShadow = '0 0 0 3px #D4FAE6'; }}
+                onFocus={(e) => { e.target.style.borderColor = '#FFC107'; e.target.style.background = '#FFFFFF'; e.target.style.boxShadow = '0 0 0 3px rgba(255,193,7,0.15)'; }}
                 onBlur={(e) => { e.target.style.borderColor = '#E4E6EB'; e.target.style.background = '#F7F8FA'; e.target.style.boxShadow = 'none'; }}
               />
               <button
@@ -162,7 +162,7 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             style={{
-              width: '100%', background: 'linear-gradient(135deg, #0D0D0D, #333333)', color: '#FFFFFF',
+              width: '100%', background: 'linear-gradient(135deg, #1A1A1A, #333333)', color: '#FFC107',
               border: 'none', borderRadius: '100px', padding: '14px', fontSize: '15px', fontWeight: 500,
               cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px',
               opacity: loading ? 0.7 : 1

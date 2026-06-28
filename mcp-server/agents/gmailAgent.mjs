@@ -3,11 +3,15 @@ import cors from 'cors';
 import { google } from 'googleapis';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import connectDB from '../config/db.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, '../../Backend/.env') });
+
 import { logAgentEvent } from '../services/analyticsLogger.mjs';
 import { askGroq } from '../utils/groq.mjs';
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -15,7 +19,13 @@ app.use(express.json());
 
 const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
 const EMPLOYER_ID = process.env.EMPLOYER_MONGO_ID;
+const SERVICE_KEY = process.env.AGENT_SERVICE_KEY;
 const PORT = process.env.AGENT_PORT || 5001;
+
+const svcH = () => ({
+  'X-Service-Key': SERVICE_KEY,
+  'X-Employer-Id': EMPLOYER_ID,
+});
 
 // ── DB connect
 await connectDB();
@@ -71,6 +81,7 @@ app.get('/agent/emails', async (req, res) => {
   try {
     const response = await axios.get(`${API_BASE}/emails`, {
       params: { employerId: EMPLOYER_ID },
+      headers: svcH(),
     });
 
     const all = response.data.data || [];
@@ -84,7 +95,7 @@ app.get('/agent/emails', async (req, res) => {
       unreplied.map(async (email) => {
         let threadHistory = [];
         try {
-          const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`);
+          const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`, { headers: svcH() });
           threadHistory = t.data.data || [];
         } catch {}
 
@@ -102,7 +113,8 @@ app.get('/agent/emails', async (req, res) => {
 app.get('/agent/emails/:customerId/history', async (req, res) => {
   try {
     const response = await axios.get(
-      `${API_BASE}/emails/customer/${req.params.customerId}`
+      `${API_BASE}/emails/customer/${req.params.customerId}`,
+      { headers: svcH() }
     );
     res.json(response.data);
   } catch (err) {
@@ -119,13 +131,14 @@ app.post('/agent/emails/:emailId/send-reply', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Reply body is required' });
     }
 
-    const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`);
+    const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`, { headers: svcH() });
     const email = emailRes.data.data;
 
     const sendStart = Date.now();
     const response = await axios.post(
       `${API_BASE}/emails/${req.params.emailId}/reply`,
-      { body: body.trim() }
+      { body: body.trim() },
+      { headers: svcH() }
     );
     const sendLatencyMs = Date.now() - sendStart;
 
@@ -172,7 +185,7 @@ app.post('/agent/emails/:emailId/auto-reply', async (req, res) => {
   const started = Date.now();
 
   try {
-    const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`);
+    const emailRes = await axios.get(`${API_BASE}/emails/${req.params.emailId}`, { headers: svcH() });
     const email = emailRes.data.data;
 
     if (!email) {
@@ -208,14 +221,14 @@ app.post('/agent/emails/:emailId/auto-reply', async (req, res) => {
 
     let threadHistory = [];
     try {
-      const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`);
+      const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`, { headers: svcH() });
       threadHistory = t.data.data || [];
     } catch {}
 
     const ai = await generateSuggestedReply(email, threadHistory);
 
     const sendStart = Date.now();
-    await axios.post(`${API_BASE}/emails/${req.params.emailId}/reply`, { body: ai.content });
+    await axios.post(`${API_BASE}/emails/${req.params.emailId}/reply`, { body: ai.content }, { headers: svcH() });
     const sendLatencyMs = Date.now() - sendStart;
 
     await logAgentEvent({
@@ -264,6 +277,7 @@ app.post('/agent/emails/auto-reply-all', async (req, res) => {
   try {
     const response = await axios.get(`${API_BASE}/emails`, {
       params: { employerId: EMPLOYER_ID },
+      headers: svcH(),
     });
 
     const unreplied = (response.data.data || []).filter(
@@ -281,14 +295,14 @@ app.post('/agent/emails/auto-reply-all', async (req, res) => {
       try {
         let threadHistory = [];
         try {
-          const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`);
+          const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`, { headers: svcH() });
           threadHistory = t.data.data || [];
         } catch {}
 
         const ai = await generateSuggestedReply(email, threadHistory);
 
         const sendStart = Date.now();
-        await axios.post(`${API_BASE}/emails/${email._id}/reply`, { body: ai.content });
+        await axios.post(`${API_BASE}/emails/${email._id}/reply`, { body: ai.content }, { headers: svcH() });
         const sendLatencyMs = Date.now() - sendStart;
 
         await logAgentEvent({
@@ -351,12 +365,12 @@ app.post('/agent/emails/suggest', async (req, res) => {
   try {
     const { emailId, customMessage } = req.body;
 
-    const emailRes = await axios.get(`${API_BASE}/emails/${emailId}`);
+    const emailRes = await axios.get(`${API_BASE}/emails/${emailId}`, { headers: svcH() });
     const email = emailRes.data.data;
 
     let threadHistory = [];
     try {
-      const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`);
+      const t = await axios.get(`${API_BASE}/emails/thread/${email.threadId}`, { headers: svcH() });
       threadHistory = t.data.data || [];
     } catch {}
 

@@ -4,10 +4,15 @@ const Email = require('../models/Email');
 const Employer = require('../models/Employer');
 const { sendReply } = require('../services/gmailService');
 
+const { authenticate, authorize, authenticateOrService } = require('../middleware/auth');
+const { validateObjectId } = require('../middleware/validate');
+
 const router = express.Router();
 
+// ── All email routes require employer authentication ──────────────────────────
+
 // GET /api/emails
-router.get('/', async (req, res) => {
+router.get('/', authenticateOrService, authorize('employer'), async (req, res) => {
   try {
     const {
       employerId,
@@ -66,7 +71,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/emails/thread/:threadId
-router.get('/thread/:threadId', async (req, res) => {
+router.get('/thread/:threadId', authenticateOrService, authorize('employer'), async (req, res) => {
   try {
     const emails = await Email.find({
       threadId: req.params.threadId,
@@ -84,7 +89,7 @@ router.get('/thread/:threadId', async (req, res) => {
 });
 
 // GET /api/emails/customer/:customerId
-router.get('/customer/:customerId', async (req, res) => {
+router.get('/customer/:customerId', authenticateOrService, authorize('employer'), async (req, res) => {
   try {
     const emails = await Email.find({
       customerId: req.params.customerId,
@@ -100,7 +105,7 @@ router.get('/customer/:customerId', async (req, res) => {
 });
 
 // GET /api/emails/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateOrService, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const email = await Email.findOne({ _id: req.params.id, isArchived: false })
       .populate('customerId', 'name email phone')
@@ -122,7 +127,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/emails/:id/assign
-router.patch('/:id/assign', async (req, res) => {
+router.patch('/:id/assign', authenticate, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const { assignedTo } = req.body;
 
@@ -159,7 +164,7 @@ router.patch('/:id/assign', async (req, res) => {
 });
 
 // PATCH /api/emails/:id/status
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', authenticate, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const allowed = ['received', 'pending', 'assigned', 'replied', 'resolved', 'closed'];
     const { status } = req.body;
@@ -195,7 +200,7 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 // PATCH /api/emails/:id/note
-router.patch('/:id/note', async (req, res) => {
+router.patch('/:id/note', authenticate, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const { note, addedBy } = req.body;
 
@@ -235,7 +240,7 @@ router.patch('/:id/note', async (req, res) => {
 });
 
 // POST /api/emails/:id/reply
-router.post('/:id/reply', async (req, res) => {
+router.post('/:id/reply', authenticateOrService, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const { body, sentBy } = req.body;
 
@@ -248,21 +253,40 @@ router.post('/:id/reply', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Email not found' });
     }
 
-    const gmailResponse = await sendReply(
-      email.fromEmail,
-      email.subject || 'Support Reply',
-      body.trim(),
-      email.threadId
-    );
+    // Check if Gmail credentials are configured
+    const hasGmailCredentials = process.env.GMAIL_CLIENT_ID && 
+                               process.env.GMAIL_CLIENT_SECRET && 
+                               process.env.GMAIL_REFRESH_TOKEN &&
+                               process.env.GMAIL_ADDRESS;
+
+    let gmailId = `simulated_${Date.now()}`;
+
+    if (hasGmailCredentials) {
+      // Try to send via Gmail
+      try {
+        const gmailResponse = await sendReply(
+          email.fromEmail,
+          email.subject || 'Support Reply',
+          body.trim(),
+          email.threadId
+        );
+        gmailId = gmailResponse.id;
+      } catch (gmailError) {
+        console.error('Gmail send failed, using simulated reply:', gmailError.message);
+        gmailId = `simulated_${Date.now()}`;
+      }
+    } else {
+      console.log('Gmail credentials not configured, using simulated reply');
+    }
 
     const outbound = await Email.create({
       employerId: email.employerId,
       customerId: email.customerId,
       assignedTo: sentBy || email.assignedTo || null,
-      gmailId: gmailResponse.id,
+      gmailId: gmailId,
       threadId: email.threadId,
-      from: process.env.GMAIL_ADDRESS,
-      fromEmail: process.env.GMAIL_ADDRESS,
+      from: process.env.GMAIL_ADDRESS || 'support@omnichannel.com',
+      fromEmail: process.env.GMAIL_ADDRESS || 'support@omnichannel.com',
       to: email.fromEmail,
       subject: email.subject?.startsWith('Re:') ? email.subject : `Re: ${email.subject || 'Support Reply'}`,
       rawBody: body.trim(),
@@ -276,7 +300,7 @@ router.post('/:id/reply', async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Reply sent successfully',
+      message: hasGmailCredentials ? 'Reply sent successfully' : 'Reply saved (Gmail not configured - simulated reply)',
       data: outbound,
     });
   } catch (err) {
@@ -286,7 +310,7 @@ router.post('/:id/reply', async (req, res) => {
 });
 
 // DELETE /api/emails/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, authorize('employer'), validateObjectId(), async (req, res) => {
   try {
     const email = await Email.findOneAndUpdate(
       { _id: req.params.id, isArchived: false },

@@ -3,7 +3,8 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, MessageSquare, Mail, Phone, Smartphone,
-  Sparkles, Send, Smile, Paperclip, Loader2, AlertCircle, Users, CheckCircle, Zap, RefreshCw, Bot
+  Sparkles, Send, Smile, Paperclip, Loader2, AlertCircle, Users, CheckCircle, Zap, RefreshCw, Bot,
+  Inbox, Clock, X
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -12,6 +13,41 @@ const BASE = import.meta.env.VITE_API_URL;
 const AGENT_BASE    = import.meta.env.VITE_AGENT_URL + "/agent";
 const WA_AGENT_BASE = import.meta.env.VITE_WA_AGENT_URL + "/wa-agent";
 const OMNI_BASE     = import.meta.env.VITE_OMNI_AGENT_URL + "/omni-agent";
+
+/* ─── palette — matches the Campaigns page ─── */
+const C = {
+  cream: "#FFF8E7",
+  creamDeep: "#FFFDF5",
+  white: "#FFFFFF",
+  border: "#F0E4C8",
+  textMain: "#1A1A1A",
+  textMid: "#8A8578",
+  textFaint: "#B0A99A",
+  yellow: "#FFC107",
+  yellowDark: "#B8860B",
+  yellowBg: "#FFF3CD",
+  yellowBorder: "#FFE082",
+  amber: "#EF9F27",
+  amberBg: "#FAEEDA",
+  amberBorder: "#FAC775",
+  green:    "#B8860B",
+  greenBg:  "#FFF3CD",
+  greenBorder: "#FFE082",
+  blue: "#185FA5",
+  blueBg: "#E6F1FB",
+  blueBorder: "#B5D4F4",
+  purple: "#534AB7",
+  purpleBg: "#EEEDFE",
+  purpleBorder: "#CECBF6",
+  red: "#A32D2D",
+  redBg: "#FCEBEB",
+  redBorder: "#F7C1C1",
+};
+
+const channelStyle = {
+  whatsapp: { color: C.green, bg: C.greenBg, border: C.greenBorder, label: "WhatsApp" },
+  email: { color: C.blue, bg: C.blueBg, border: C.blueBorder, label: "Email" },
+};
 
 interface InboxItem {
   customerId: string;
@@ -47,6 +83,18 @@ interface AgentEmail {
   threadHistory?: any[];
 }
 
+interface TicketInsight {
+  sentiment: string;
+  urgency: string;
+  priority: string;
+  category: string;
+  assignedTeam: string;
+  suggestedAction: string;
+  escalationRequired: boolean;
+  confidence: number;
+  createdAt: string;
+}
+
 function initials(name: string) {
   if (!name) return "U";
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -63,12 +111,60 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+/* ─── small style helpers (mirrors Campaigns page conventions) ─── */
+function pill(color: string, bg: string, border: string): React.CSSProperties {
+  return {
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px",
+    borderRadius: 999, background: bg, border: `0.5px solid ${border}`,
+    fontSize: 9.5, fontWeight: 600, color, textTransform: "uppercase", letterSpacing: "0.04em",
+  };
+}
+
+function ghostBtn(color: string, bg: string, border: string): React.CSSProperties {
+  return {
+    display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: 11,
+    color, background: bg, border: `0.5px solid ${border}`, borderRadius: 8, cursor: "pointer",
+    fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+  };
+}
+
+function primaryBtn(disabled?: boolean): React.CSSProperties {
+  return {
+    display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10,
+    background: C.textMain, color: C.yellow, border: "none", fontSize: 11.5, fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer", textTransform: "uppercase", letterSpacing: "0.04em",
+    opacity: disabled ? 0.5 : 1,
+  };
+}
+
+function metaLine(color: string): React.CSSProperties {
+  return { display: "flex", alignItems: "center", gap: 6, fontSize: 11, color };
+}
+
+function toggleTrack(on: boolean, color: string): React.CSSProperties {
+  return {
+    position: "relative", display: "inline-flex", height: 24, width: 42, flexShrink: 0,
+    alignItems: "center", borderRadius: 999, cursor: "pointer", transition: "all 0.25s",
+    background: on ? color : C.border, border: `1px solid ${on ? color : C.border}`,
+  };
+}
+
+function toggleThumb(on: boolean): React.CSSProperties {
+  return {
+    display: "inline-block", height: 16, width: 16, borderRadius: "50%", background: C.white,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.25)", transform: `translateX(${on ? 22 : 3}px)`,
+    transition: "transform 0.25s",
+  };
+}
+
 export default function InboxPage() {
   const { user } = useAuth();
   const employerId = user?._id || (user as any)?.id;
 
-  // modes
-  const [inboxMode, setInboxMode] = useState<'omni' | 'agent'>('omni');
+  // mode is fixed to 'omni' — the standalone "AI Agent" inbox view has been removed.
+  // (Per-customer AI agents — Email Agent / WA Agent / Omni Intelligence — are still
+  // available from within a conversation, see the buttons in the profile column.)
+  const inboxMode = 'omni' as const;
   const [search, setSearch] = useState("");
 
   // OMNI INBOX STATE
@@ -80,6 +176,8 @@ export default function InboxPage() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [waError, setWaError] = useState(false);
   const [emailError, setEmailError] = useState(false);
+  const [ticketInsight, setTicketInsight] = useState<TicketInsight | null>(null);
+  const [ticketInsightLoading, setTicketInsightLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'whatsapp' | 'email'>('all');
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
@@ -117,18 +215,6 @@ export default function InboxPage() {
   const [emailAgentSending, setEmailAgentSending] = useState(false);
   const [emailAgentContextOpen, setEmailAgentContextOpen] = useState(false);
 
-  // AGENT INBOX STATE
-  const [agentEmails, setAgentEmails] = useState<AgentEmail[]>([]);
-  const [agentLoading, setAgentLoading] = useState(true);
-  const [agentError, setAgentError] = useState("");
-  const [activeAgentEmail, setActiveAgentEmail] = useState<AgentEmail | null>(null);
-  const [agentHistory, setAgentHistory] = useState<TimelineMessage[]>([]);
-  const [agentHistoryLoading, setAgentHistoryLoading] = useState(false);
-  const [editReplyText, setEditReplyText] = useState("");
-  const [regenerating, setRegenerating] = useState(false);
-  const [sendingAgent, setSendingAgent] = useState(false);
-  const [autoReplyingAll, setAutoReplyingAll] = useState(false);
-
   // WA AGENT PANEL STATE
   const [waAgentOpen, setWaAgentOpen] = useState(false);
   const [waAgentLoading, setWaAgentLoading] = useState(false);
@@ -145,7 +231,7 @@ export default function InboxPage() {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   // ==========================================
-  // 1. OMNI INBOX LOGIC
+  // OMNI INBOX LOGIC
   // ==========================================
   const fetchOmniInbox = useCallback(async () => {
     if (!employerId) return;
@@ -280,8 +366,26 @@ export default function InboxPage() {
       }
     };
 
+    const fetchTicketInsight = async () => {
+      if (!selectedCustomerId) return;
+      setTicketInsightLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE}/tickets/intelligence?customerId=${selectedCustomerId}&limit=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setTicketInsight(res.data.data?.[0] || null);
+      } catch (err: any) {
+        console.error("Failed to fetch ticket intelligence", err);
+        setTicketInsight(null);
+      } finally {
+        setTicketInsightLoading(false);
+      }
+    };
+
     fetchProfile();
     fetchAutoReplyStatus();
+    fetchTicketInsight();
   }, [selectedCustomerId]);
 
   const handleToggleEmailAutoReply = async () => {
@@ -327,9 +431,6 @@ export default function InboxPage() {
   };
 
   // ── AUTO-REPLY ENGINE ─────────────────────────────────────────────────────
-  // Runs after every timeline fetch. On the FIRST fetch for a customer it just
-  // seeds existing IDs so we don't replay old messages. On subsequent fetches
-  // any ID that's NOT in the set is genuinely new → trigger auto-reply.
   const runAutoReplyEngine = useCallback(async (
     customerId: string,
     merged: TimelineMessage[]
@@ -338,13 +439,11 @@ export default function InboxPage() {
     const isSeeded = seededCustomersRef.current.has(customerId);
 
     if (!isSeeded) {
-      // First load — mark everything as seen, don't send any replies
       merged.forEach(m => processedIdsRef.current.add(cidKey(m.id)));
       seededCustomersRef.current.add(customerId);
       return;
     }
 
-    // Find inbound messages we haven't processed yet
     const newInboundWa = merged.filter(m =>
       m.type === 'whatsapp' &&
       m.direction === 'inbound' &&
@@ -356,7 +455,6 @@ export default function InboxPage() {
       !processedIdsRef.current.has(cidKey(m.id))
     );
 
-    // Mark as processed immediately to prevent double-sends
     [...newInboundWa, ...newInboundEmail].forEach(m =>
       processedIdsRef.current.add(cidKey(m.id))
     );
@@ -455,7 +553,6 @@ export default function InboxPage() {
         return prev;
       });
 
-      // Run auto-reply detection (seed-safe)
       await runAutoReplyEngine(selectedCustomerId, merged);
 
     } catch (err: any) {
@@ -466,11 +563,10 @@ export default function InboxPage() {
   }, [selectedCustomerId, employerId, timeline.length, runAutoReplyEngine]);
 
   useEffect(() => {
-    if (inboxMode !== 'omni') return;
     fetchOmniTimeline();
     const int = setInterval(fetchOmniTimeline, 15000);
     return () => clearInterval(int);
-  }, [fetchOmniTimeline, inboxMode]);
+  }, [fetchOmniTimeline]);
 
   const handleUpdateEmailStatus = async (id: string, status: string) => {
     try {
@@ -725,117 +821,9 @@ export default function InboxPage() {
     }
   };
 
-  // ==========================================
-  // 2. AI AGENT LOGIC
-  // ==========================================
-  const fetchAgentEmails = useCallback(async () => {
-    try {
-      const res = await axios.get(`${AGENT_BASE}/emails`);
-      const newEmails = res.data?.data || res.data || [];
-      setAgentEmails(prev => {
-        if (newEmails.length > prev.length && prev.length > 0) {
-          toast.success(`${newEmails.length - prev.length} new unreplied emails!`);
-        }
-        return newEmails;
-      });
-      setAgentError("");
-    } catch (err: any) {
-      console.error("Agent fetch error:", err);
-      setAgentError("Failed to load agent emails");
-    } finally {
-      setAgentLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (inboxMode !== 'agent') return;
-    setAgentLoading(true);
-    fetchAgentEmails();
-    const int = setInterval(fetchAgentEmails, 30000);
-    return () => clearInterval(int);
-  }, [inboxMode, fetchAgentEmails]);
-
-  useEffect(() => {
-    if (inboxMode !== 'agent' || !activeAgentEmail) return;
-
-    setEditReplyText(activeAgentEmail.suggestedReply || "");
-    setAgentHistoryLoading(true);
-
-    const fetchHistory = async () => {
-      try {
-        const res = await axios.get(`${AGENT_BASE}/emails/${activeAgentEmail.customerId._id}/history`);
-        const historyRaw = res.data?.data || res.data || [];
-        const formatted: TimelineMessage[] = historyRaw.map((m: any) => ({
-          id: m._id || m.id,
-          type: 'email',
-          subject: m.subject,
-          body: m.body || m.rawBody,
-          direction: m.direction || 'inbound',
-          status: m.status,
-          timestamp: m.emailDate || m.createdAt || new Date().toISOString()
-        })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-        setAgentHistory(formatted);
-      } catch (err) {
-        console.error("Failed to load agent history");
-        toast.error("Failed to load email history context");
-      } finally {
-        setAgentHistoryLoading(false);
-      }
-    };
-    fetchHistory();
-  }, [activeAgentEmail, inboxMode]);
-
-  const handleAgentRegenerate = async () => {
-    if (!activeAgentEmail) return;
-    setRegenerating(true);
-    try {
-      const res = await axios.post(`${AGENT_BASE}/emails/suggest`, { emailId: activeAgentEmail._id });
-      setEditReplyText(res.data.suggestion || res.data.data?.suggestion || "");
-      toast.success("AI generated a new response");
-    } catch (err) {
-      toast.error("Failed to regenerate response");
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const handleAgentSend = async () => {
-    if (!activeAgentEmail || !editReplyText.trim()) return;
-    setSendingAgent(true);
-    try {
-      await axios.post(`${AGENT_BASE}/emails/${activeAgentEmail._id}/send-reply`, { body: editReplyText });
-      toast.success("Sent!");
-      setActiveAgentEmail(null);
-      fetchAgentEmails();
-    } catch (err) {
-      toast.error("Failed to send reply");
-    } finally {
-      setSendingAgent(false);
-    }
-  };
-
-  const handleAutoReplyAll = async () => {
-    if (agentEmails.length === 0) return;
-    if (!window.confirm(`Auto-reply to all ${agentEmails.length} unreplied emails? The AI will instantly dispatch responses without manual review.`)) return;
-
-    setAutoReplyingAll(true);
-    toast("Auto-repliers engaged. Dispatched to background queue...");
-    try {
-      await axios.post(`${AGENT_BASE}/emails/auto-reply-all`);
-      toast.success(`Successfully auto-replied to all ${agentEmails.length} emails!`);
-      setActiveAgentEmail(null);
-      fetchAgentEmails();
-    } catch (err) {
-      toast.error("Failed to process auto-reply all");
-    } finally {
-      setAutoReplyingAll(false);
-    }
-  };
-
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [timeline, agentHistory]);
+  }, [timeline]);
 
   const filteredTimeline = timeline.filter(msg => filter === 'all' || msg.type === filter);
   const anyArOn = autoReplyWhatsapp || autoReplyEmail;
@@ -847,281 +835,223 @@ export default function InboxPage() {
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const filteredAgentEmails = agentEmails.filter(e =>
-    e.subject?.toLowerCase().includes(search.toLowerCase()) ||
-    e.customerId?.name?.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
-    <div className="flex h-full w-full overflow-hidden custom-scrollbar">
-      {/* ── UNIFIED SIDEBAR ── */}
-      <div className="w-80 border-r border-white/[0.06] flex flex-col shrink-0 bg-background z-10">
+    <div style={{ display: "flex", height: "100%", width: "100%", overflow: "hidden", background: C.cream, fontFamily: "DM Sans, Inter, sans-serif" }}>
 
-        {/* Toggle Head */}
-        <div className="p-4 border-b border-white/[0.06] flex flex-col gap-4">
-          <div className="flex bg-white/[0.03] p-1 rounded-lg border border-white/[0.06]">
-            <button
-              onClick={() => { setInboxMode('omni'); setActiveAgentEmail(null); setSelectedCustomerId(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${inboxMode === 'omni' ? 'bg-white/[0.08] text-foreground shadow-sm' : 'text-muted-foreground hover:text-white hover:bg-white/[0.02]'}`}
-            >
-              <Users className="w-3.5 h-3.5" /> Omni Inbox
-            </button>
-            <button
-              onClick={() => { setInboxMode('agent'); setActiveAgentEmail(null); setSelectedCustomerId(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${inboxMode === 'agent' ? 'bg-indigo-500/20 text-indigo-100 shadow-sm border border-indigo-500/30' : 'text-muted-foreground hover:text-white hover:bg-white/[0.02]'}`}
-            >
-              <Bot className="w-3.5 h-3.5" /> AI Agent
-            </button>
+      {/* ── UNIFIED SIDEBAR ── */}
+      <div style={{ width: 320, flexShrink: 0, borderRight: `0.5px solid ${C.border}`, background: C.creamDeep, display: "flex", flexDirection: "column", zIndex: 10 }}>
+
+        {/* Header — AI Agent toggle removed, just a static "Omni Inbox" label now */}
+        <div style={{ padding: 16, borderBottom: `0.5px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: C.white, borderRadius: 10, border: `0.5px solid ${C.border}` }}>
+            <Users style={{ width: 14, height: 14, color: C.textMain }} />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.textMain, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+              Omni Inbox
+            </span>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div style={{ position: "relative" }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: C.textFaint }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm focus:outline-none focus:border-neon-cyan/50 transition-colors"
-              placeholder={`Search ${inboxMode === 'omni' ? 'customers' : 'emails'}…`}
+              style={{
+                width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
+                borderRadius: 10, background: C.white, border: `0.5px solid ${C.border}`, fontSize: 13,
+                color: C.textMain, outline: "none",
+              }}
+              placeholder="Search customers…"
             />
           </div>
         </div>
 
         {/* List Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin flex flex-col">
-          {inboxMode === 'omni' ? (
-            <>
-              {inboxLoading && (
-                <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin text-neon-cyan" />
-                  <span className="text-xs">Loading…</span>
-                </div>
-              )}
-              {!inboxLoading && inboxArray.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-32 gap-2 text-center text-muted-foreground">
-                  <Users className="w-6 h-6 opacity-30" />
-                  <p className="text-xs">No active conversations</p>
-                </div>
-              )}
-              {!inboxLoading && inboxArray.map((c, i) => (
-                <motion.button
-                  key={c.customerId}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  onClick={() => setSelectedCustomerId(c.customerId)}
-                  className={`w-full text-left p-4 border-b border-white/[0.04] transition-colors relative ${
-                    selectedCustomerId === c.customerId ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"
-                  }`}
-                >
-                  {selectedCustomerId === c.customerId && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-neon-cyan" />
-                  )}
-                  {c.unread && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-neon-cyan shadow-[0_0_8px_rgba(0,255,255,0.8)]" />
-                  )}
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center shrink-0 text-xs font-bold border border-white/[0.05]">
-                      {initials(c.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`font-medium text-sm truncate ${c.unread ? 'text-white' : 'text-foreground/90'}`}>{c.name}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0 ml-1 font-mono">{timeAgo(c.timestamp)}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate my-0.5">{c.lastMessage}</div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {c.channels.has('whatsapp') && <MessageSquare className="w-3 h-3 text-green-400 opacity-80" />}
-                        {c.channels.has('email') && <Mail className="w-3 h-3 text-blue-400 opacity-80" />}
-                        {/* Show AUTO badge only for the selected customer when auto-reply is on */}
-                        {selectedCustomerId === c.customerId && anyArOn && (
-                          <span className="ml-auto text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/30 text-green-300 flex items-center gap-0.5">
-                            <Bot className="w-2.5 h-2.5" /> AUTO
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.button>
-              ))}
-            </>
-          ) : (
-            <>
-              {agentEmails.length > 0 && (
-                <div className="p-4 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-indigo-500/[0.02]">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center gap-1"><Bot className="w-4 h-4" /> AI Queue ({agentEmails.length})</span>
-                  <button
-                    onClick={handleAutoReplyAll}
-                    disabled={autoReplyingAll || agentEmails.length === 0}
-                    className="px-3 py-1.5 text-[10px] bg-green-500/20 text-green-400 border border-green-500/30 rounded-full font-bold uppercase tracking-wider hover:bg-green-500/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {autoReplyingAll ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                    Auto Reply All
-                  </button>
-                </div>
-              )}
-              {agentLoading && agentEmails.length === 0 && (
-                <div className="flex items-center justify-center h-32 gap-2 text-indigo-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-xs font-bold">Scanning Gmail...</span>
-                </div>
-              )}
-              {agentError && !agentLoading && (
-                <div className="flex flex-col items-center justify-center h-32 gap-2 px-4 text-center">
-                  <AlertCircle className="w-6 h-6 text-red-400/70" />
-                  <p className="text-xs text-muted-foreground">{agentError}</p>
-                  <button onClick={fetchAgentEmails} className="text-xs text-indigo-400 hover:underline">Retry</button>
-                </div>
-              )}
-              {!agentLoading && filteredAgentEmails.length === 0 && !agentError && (
-                <div className="flex flex-col items-center justify-center h-48 gap-3 text-center text-muted-foreground">
-                  <div className="w-12 h-12 rounded-full border border-white/[0.05] flex items-center justify-center bg-white/[0.02]">
-                    <CheckCircle className="w-6 h-6 text-green-500/50" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground/80">Inbox Zero</p>
-                    <p className="text-xs mt-0.5">No unreplied emails</p>
-                  </div>
-                </div>
-              )}
-              {!agentLoading && filteredAgentEmails.map((e, i) => (
-                <motion.button
-                  key={e._id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  onClick={() => setActiveAgentEmail(e)}
-                  className={`w-full text-left p-4 border-b border-white/[0.04] transition-colors relative ${
-                    activeAgentEmail?._id === e._id ? "bg-indigo-500/[0.05]" : "hover:bg-white/[0.03]"
-                  }`}
-                >
-                  {activeAgentEmail?._id === e._id && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />}
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-indigo-500/10 flex items-center justify-center shrink-0 text-xs font-bold border border-indigo-500/20 text-indigo-300">
-                      {initials(e.customerId?.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-bold text-sm truncate text-white">{e.customerId?.name || "Unknown Sender"}</span>
-                        <span className="text-[9px] text-muted-foreground shrink-0 ml-1 font-mono uppercase bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">
-                          Unreplied
-                        </span>
-                      </div>
-                      <div className="text-xs font-semibold text-foreground/80 truncate">{e.subject}</div>
-                      <div className="text-[11px] text-muted-foreground truncate mt-0.5">{timeAgo(e.emailDate)}</div>
-                    </div>
-                  </div>
-                </motion.button>
-              ))}
-            </>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }} className="scrollbar-thin">
+          {inboxLoading && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 128, gap: 8, color: C.textFaint }}>
+              <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />
+              <span style={{ fontSize: 12 }}>Loading…</span>
+            </div>
           )}
+          {!inboxLoading && inboxArray.length === 0 && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 160, gap: 10, textAlign: "center", color: C.textFaint, padding: "0 24px" }}>
+              <Inbox style={{ width: 26, height: 26, opacity: 0.5 }} />
+              <p style={{ fontSize: 12.5, color: C.textMid, margin: 0 }}>No active conversations yet. New WhatsApp or email messages will show up here.</p>
+            </div>
+          )}
+          {!inboxLoading && inboxArray.map((c, i) => (
+            <motion.button
+              key={c.customerId}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.03 }}
+              onClick={() => setSelectedCustomerId(c.customerId)}
+              style={{
+                width: "100%", textAlign: "left", padding: "14px 16px", border: "none",
+                borderBottom: `0.5px solid ${C.border}`, cursor: "pointer", position: "relative",
+                background: selectedCustomerId === c.customerId ? C.yellowBg : "transparent",
+                transition: "background 0.15s",
+              }}
+            >
+              {selectedCustomerId === c.customerId && (
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: C.yellow }} />
+              )}
+              {c.unread && (
+                <div style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", width: 8, height: 8, borderRadius: "50%", background: C.yellow, boxShadow: `0 0 0 3px ${C.yellowBg}` }} />
+              )}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%", background: C.amberBg, flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5,
+                  fontWeight: 700, color: C.yellowDark, border: `0.5px solid ${C.yellowBorder}`,
+                }}>
+                  {initials(c.name)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13.5, color: C.textMain, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                    <span style={{ fontSize: 10, color: C.textFaint, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace" }}>{timeAgo(c.timestamp)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textMid, margin: "3px 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMessage}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4 }}>
+                    {c.channels.has('whatsapp') && <MessageSquare style={{ width: 12, height: 12, color: C.green }} />}
+                    {c.channels.has('email') && <Mail style={{ width: 12, height: 12, color: C.blue }} />}
+                    {selectedCustomerId === c.customerId && anyArOn && (
+                      <span style={{ ...pill(C.yellowDark, C.yellowBg, C.yellowBorder), marginLeft: "auto" }}>
+                        <Bot style={{ width: 10, height: 10 }} /> Auto
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.button>
+          ))}
         </div>
       </div>
 
       {/* ── ACTIVE VIEW AREA ── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* === RENDER OMNI MODE === */}
-        {inboxMode === 'omni' && selectedCustomerId && customerProfile ? (
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {selectedCustomerId && customerProfile ? (
           <>
             {/* L1: Omni Static Profile */}
-            <div className="w-72 lg:w-80 border-r border-white/[0.06] flex flex-col overflow-y-auto scrollbar-thin bg-background/50">
-              <div className="p-8 flex flex-col items-center text-center border-b border-white/[0.06]">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center text-3xl font-bold mb-4 border-2 border-white/[0.08] shadow-[0_0_15px_rgba(0,255,255,0.05)]">
+            <div style={{ width: 300, flexShrink: 0, borderRight: `0.5px solid ${C.border}`, display: "flex", flexDirection: "column", overflowY: "auto", background: C.creamDeep }} className="scrollbar-thin">
+              <div style={{ padding: "30px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", borderBottom: `0.5px solid ${C.border}` }}>
+                <div style={{
+                  width: 84, height: 84, borderRadius: "50%", background: C.amberBg, display: "flex",
+                  alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700,
+                  marginBottom: 14, border: `2px solid ${C.yellowBorder}`, color: C.yellowDark,
+                }}>
                   {initials(customerProfile.name)}
                 </div>
-                <h2 className="text-lg font-bold tracking-tight">{customerProfile.name}</h2>
-                <div className="flex items-center gap-2 mt-3">
-                  {customerProfile.channel_ids?.whatsapp && <span className="p-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 shadow-sm" title="WhatsApp Active"><MessageSquare className="w-4 h-4" /></span>}
-                  {customerProfile.email && <span className="p-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-sm" title="Email Active"><Mail className="w-4 h-4" /></span>}
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: C.textMain, margin: 0 }}>{customerProfile.name}</h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                  {customerProfile.channel_ids?.whatsapp && (
+                    <span style={{ padding: 7, borderRadius: "50%", background: C.greenBg, color: C.green, border: `0.5px solid ${C.greenBorder}` }} title="WhatsApp Active"><MessageSquare style={{ width: 14, height: 14 }} /></span>
+                  )}
+                  {customerProfile.email && (
+                    <span style={{ padding: 7, borderRadius: "50%", background: C.blueBg, color: C.blue, border: `0.5px solid ${C.blueBorder}` }} title="Email Active"><Mail style={{ width: 14, height: 14 }} /></span>
+                  )}
                 </div>
+
                 {customerProfile.email && (
-                  <button onClick={handleOpenEmailAgent} className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-indigo-500/30 text-indigo-400 text-xs font-bold uppercase tracking-wider hover:bg-indigo-500/10 transition-colors mb-2">
-                    <Bot className="w-3.5 h-3.5" /> Run Email Agent
+                  <button onClick={handleOpenEmailAgent} style={{ ...ghostBtn(C.blue, C.blueBg, C.blueBorder), width: "100%", justifyContent: "center", marginTop: 16 }}>
+                    <Bot style={{ width: 13, height: 13 }} /> Run Email Agent
                   </button>
                 )}
                 <button
                   onClick={handleOpenOmniIntelligence}
-                  className={`${!customerProfile.email ? 'mt-4' : ''} w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-[0_0_20px_rgba(99,102,241,0.6)] transition-all`}
+                  style={{ ...primaryBtn(), width: "100%", justifyContent: "center", marginTop: customerProfile.email ? 8 : 16 }}
                 >
-                  <Zap className="w-3.5 h-3.5" /> Omni Intelligence
+                  <Zap style={{ width: 13, height: 13 }} /> Omni Intelligence
                 </button>
 
+                {ticketInsight && (
+                  <div style={{ marginTop: 16, width: "100%", padding: 14, borderRadius: 14, border: `0.5px solid ${C.border}`, background: C.white, textAlign: "left" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textFaint, fontWeight: 700 }}>Ticket Insight</span>
+                      <span style={pill(ticketInsight.escalationRequired ? C.red : C.green, ticketInsight.escalationRequired ? C.redBg : C.greenBg, ticketInsight.escalationRequired ? C.redBorder : C.greenBorder)}>
+                        {ticketInsight.escalationRequired ? 'Escalation' : 'Normal'}
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gap: 7 }}>
+                      <div style={{ fontSize: 12.5, color: C.textMid }}>Sentiment: <strong style={{ color: C.textMain }}>{ticketInsight.sentiment}</strong></div>
+                      <div style={{ fontSize: 12.5, color: C.textMid }}>Urgency: <strong style={{ color: C.textMain }}>{ticketInsight.urgency}</strong></div>
+                      <div style={{ fontSize: 12.5, color: C.textMid }}>Priority: <strong style={{ color: C.textMain }}>{ticketInsight.priority}</strong></div>
+                      <div style={{ fontSize: 12.5, color: C.textMid }}>Category: <strong style={{ color: C.textMain }}>{ticketInsight.category}</strong></div>
+                      <div style={{ fontSize: 12.5, color: C.textMid }}>Team: <strong style={{ color: C.textMain }}>{ticketInsight.assignedTeam}</strong></div>
+                      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginTop: 4 }}>Suggested Action</div>
+                      <div style={{ fontSize: 12, color: C.textMid, background: C.cream, borderRadius: 10, padding: 10, lineHeight: 1.5 }}>{ticketInsight.suggestedAction}</div>
+                    </div>
+                  </div>
+                )}
+
                 {/* ── AUTO REPLY TOGGLES ── */}
-                <div className={`w-full mt-3 p-3.5 rounded-xl border space-y-3 transition-all duration-500 ${
-                  anyArOn
-                    ? 'bg-gradient-to-br from-green-500/[0.07] to-blue-500/[0.05] border-green-500/20 shadow-[0_0_12px_rgba(34,197,94,0.08)]'
-                    : 'bg-white/[0.03] border-white/[0.06]'
-                }`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Bot className="w-3.5 h-3.5 text-neon-cyan" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neon-cyan">Auto Reply</span>
-                    {autoReplyLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-auto" />}
+                <div style={{
+                  width: "100%", marginTop: 12, padding: 14, borderRadius: 14, textAlign: "left",
+                  border: `0.5px solid ${anyArOn ? C.yellowBorder : C.border}`,
+                  background: anyArOn ? C.yellowBg : C.white,
+                  display: "flex", flexDirection: "column", gap: 12, transition: "all 0.3s",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <Bot style={{ width: 14, height: 14, color: C.yellowDark }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.yellowDark }}>Auto Reply</span>
+                    {autoReplyLoading && <Loader2 style={{ width: 12, height: 12, marginLeft: "auto", color: C.textFaint }} className="animate-spin" />}
                     {anyArOn && !autoReplyLoading && (
-                      <span className="ml-auto flex items-center gap-1 text-[9px] font-black uppercase text-green-300 tracking-widest">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-                        LIVE
+                      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: C.green, letterSpacing: "0.06em" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+                        Live
                       </span>
                     )}
                   </div>
 
                   {/* WhatsApp toggle */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className={`w-3.5 h-3.5 transition-all ${autoReplyWhatsapp ? 'text-green-400 drop-shadow-[0_0_4px_rgba(34,197,94,0.8)]' : 'text-green-400/50'}`} />
-                      <span className={`text-xs font-semibold transition-all ${autoReplyWhatsapp ? 'text-white' : 'text-foreground/60'}`}>WhatsApp</span>
-                      {autoReplyWhatsapp && <span className="text-[9px] text-green-400 font-bold uppercase tracking-wider">• On</span>}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <MessageSquare style={{ width: 14, height: 14, color: autoReplyWhatsapp ? C.green : C.textFaint }} />
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: autoReplyWhatsapp ? C.textMain : C.textMid }}>WhatsApp</span>
                     </div>
                     <button
                       onClick={handleToggleWaAutoReply}
                       disabled={togglingWa || autoReplyLoading}
                       title={autoReplyWhatsapp ? 'Disable WhatsApp auto-reply' : 'Enable WhatsApp auto-reply'}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-all duration-300 focus:outline-none disabled:opacity-50 ${
-                        autoReplyWhatsapp
-                          ? 'bg-green-500 border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.7)]'
-                          : 'bg-white/[0.06] border-white/[0.10]'
-                      }`}
+                      style={{ ...toggleTrack(autoReplyWhatsapp, C.green), border: "none", padding: 0, opacity: (togglingWa || autoReplyLoading) ? 0.6 : 1 }}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full shadow-md transition-transform duration-300 ${autoReplyWhatsapp ? 'translate-x-5 bg-white' : 'translate-x-0.5 bg-white/80'}`} />
-                      {togglingWa && <Loader2 className="absolute right-[-18px] w-3 h-3 animate-spin text-green-400" />}
+                      <span style={toggleThumb(autoReplyWhatsapp)} />
                     </button>
                   </div>
 
                   {/* Email toggle */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Mail className={`w-3.5 h-3.5 transition-all ${autoReplyEmail ? 'text-blue-400 drop-shadow-[0_0_4px_rgba(59,130,246,0.8)]' : 'text-blue-400/50'}`} />
-                      <span className={`text-xs font-semibold transition-all ${autoReplyEmail ? 'text-white' : 'text-foreground/60'}`}>Email</span>
-                      {autoReplyEmail && <span className="text-[9px] text-blue-400 font-bold uppercase tracking-wider">• On</span>}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Mail style={{ width: 14, height: 14, color: autoReplyEmail ? C.blue : C.textFaint }} />
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: autoReplyEmail ? C.textMain : C.textMid }}>Email</span>
                     </div>
                     <button
                       onClick={handleToggleEmailAutoReply}
                       disabled={togglingEmail || autoReplyLoading}
                       title={autoReplyEmail ? 'Disable Email auto-reply' : 'Enable Email auto-reply'}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-all duration-300 focus:outline-none disabled:opacity-50 ${
-                        autoReplyEmail
-                          ? 'bg-blue-500 border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.7)]'
-                          : 'bg-white/[0.06] border-white/[0.10]'
-                      }`}
+                      style={{ ...toggleTrack(autoReplyEmail, C.blue), border: "none", padding: 0, opacity: (togglingEmail || autoReplyLoading) ? 0.6 : 1 }}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full shadow-md transition-transform duration-300 ${autoReplyEmail ? 'translate-x-5 bg-white' : 'translate-x-0.5 bg-white/80'}`} />
-                      {togglingEmail && <Loader2 className="absolute right-[-18px] w-3 h-3 animate-spin text-blue-400" />}
+                      <span style={toggleThumb(autoReplyEmail)} />
                     </button>
                   </div>
 
                   {anyArOn && (
-                    <p className="text-[10px] text-muted-foreground italic leading-relaxed pt-1 border-t border-white/[0.05]">
+                    <p style={{ fontSize: 10.5, color: C.textMid, fontStyle: "italic", lineHeight: 1.5, margin: 0, paddingTop: 8, borderTop: `0.5px solid ${C.yellowBorder}` }}>
                       AI will auto-reply to new {[autoReplyWhatsapp && 'WhatsApp', autoReplyEmail && 'Email'].filter(Boolean).join(' & ')} messages within ~15s of arrival.
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="p-6 space-y-8">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-neon-cyan/[0.05] to-neon-purple/[0.02] border border-neon-cyan/10 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="w-4 h-4 text-neon-cyan shrink-0" />
-                    <span className="text-xs font-bold text-neon-cyan uppercase tracking-widest">AI Summary</span>
+              <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 22 }}>
+                <div style={{ padding: 14, borderRadius: 14, background: C.yellowBg, border: `0.5px solid ${C.yellowBorder}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+                    <Sparkles style={{ width: 14, height: 14, color: C.yellowDark, flexShrink: 0 }} />
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.yellowDark, textTransform: "uppercase", letterSpacing: "0.06em" }}>AI Summary</span>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    <strong className="text-foreground/80">{customerProfile.name}</strong> — joined{" "}
+                  <p style={{ fontSize: 12, color: C.textMid, lineHeight: 1.55, margin: 0 }}>
+                    <strong style={{ color: C.textMain }}>{customerProfile.name}</strong> — joined{" "}
                     {new Date(customerProfile.createdAt).toLocaleDateString()}.{" "}
                     {customerProfile.channel_ids?.whatsapp
                       ? "Active heavily on WhatsApp."
@@ -1130,59 +1060,69 @@ export default function InboxPage() {
                       : "Prefers contact via email."}
                   </p>
                 </div>
-                <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border-b border-white/[0.04] pb-2">Contact Details</h3>
-                  <div className="flex items-center gap-3 text-sm"><Mail className="w-4 h-4 text-neon-cyan shrink-0" /><span className="truncate text-foreground/80">{customerProfile.email}</span></div>
-                  {customerProfile.phone && <div className="flex items-center gap-3 text-sm"><Phone className="w-4 h-4 text-neon-purple shrink-0" /><span className="text-foreground/80">{customerProfile.phone}</span></div>}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <h3 style={{ fontSize: 10, fontWeight: 700, color: C.textFaint, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8, margin: 0 }}>Contact Details</h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Mail style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} /><span style={{ color: C.textMid, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{customerProfile.email}</span></div>
+                  {customerProfile.phone && <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}><Phone style={{ width: 14, height: 14, color: C.purple, flexShrink: 0 }} /><span style={{ color: C.textMid }}>{customerProfile.phone}</span></div>}
                 </div>
               </div>
             </div>
 
             {/* R1: Omni Unified Timeline */}
-            <div className="flex-1 flex flex-col bg-grid-white/[0.01] bg-[size:32px_32px] relative overflow-hidden">
-              <div className="h-auto min-h-[4rem] px-6 py-3 border-b border-white/[0.06] bg-background/50 backdrop-blur-md flex flex-wrap items-center justify-between gap-2 shrink-0">
-                <div className="flex items-center gap-3">
-                  <h2 className="font-semibold text-foreground/90 flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-neon-purple" /> Timeline Engine
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", background: C.cream }}>
+              <div style={{ minHeight: 64, padding: "12px 24px", borderBottom: `0.5px solid ${C.border}`, background: C.creamDeep, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 600, color: C.textMain, display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
+                    <MessageSquare style={{ width: 15, height: 15, color: C.purple }} /> Timeline Engine
                   </h2>
                   {isAutoReplying && (
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
+                      initial={{ opacity: 0, scale: 0.85 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg ${
-                        lastAutoReplyType === 'whatsapp'
-                          ? 'bg-green-500/20 border border-green-500/40 text-green-300 shadow-green-500/20'
-                          : 'bg-blue-500/20 border border-blue-500/40 text-blue-300 shadow-blue-500/20'
-                      }`}
+                      style={{
+                        ...pill(
+                          lastAutoReplyType === 'whatsapp' ? C.green : C.blue,
+                          lastAutoReplyType === 'whatsapp' ? C.greenBg : C.blueBg,
+                          lastAutoReplyType === 'whatsapp' ? C.greenBorder : C.blueBorder
+                        ),
+                      }}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-ping" />
-                      <Bot className="w-3 h-3" />
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                      <Bot style={{ width: 11, height: 11 }} />
                       AI Replying via {lastAutoReplyType === 'whatsapp' ? 'WhatsApp' : 'Email'}…
                     </motion.div>
                   )}
                   {!isAutoReplying && anyArOn && (
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-[10px] font-bold uppercase tracking-widest">
-                      {autoReplyWhatsapp && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.8)]" />}
-                      {autoReplyEmail    && <span className="w-1.5 h-1.5 rounded-full bg-blue-400  animate-pulse shadow-[0_0_4px_rgba(59,130,246,0.8)]" />}
-                      <Bot className="w-3 h-3 text-neon-cyan" />
-                      <span className="text-neon-cyan">Auto Reply On</span>
-                    </div>
+                    <span style={pill(C.yellowDark, C.yellowBg, C.yellowBorder)}>
+                      <Bot style={{ width: 11, height: 11 }} />
+                      Auto Reply On
+                    </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   {customerProfile.email && filter === 'email' && (
-                    <button onClick={handleOpenEmailAgent} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(99,102,241,0.4)] hover:shadow-[0_0_15px_rgba(99,102,241,0.6)] transition-all">
-                      <Sparkles className="w-3 h-3" /> Email Agent
+                    <button onClick={handleOpenEmailAgent} style={ghostBtn(C.blue, C.blueBg, C.blueBorder)}>
+                      <Sparkles style={{ width: 12, height: 12 }} /> Email Agent
                     </button>
                   )}
                   {filter === 'whatsapp' && (
-                    <button onClick={handleOpenWaAgent} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(34,197,94,0.4)] hover:shadow-[0_0_15px_rgba(34,197,94,0.6)] transition-all">
-                      <MessageSquare className="w-3 h-3" /> WA Agent
+                    <button onClick={handleOpenWaAgent} style={ghostBtn(C.green, C.greenBg, C.greenBorder)}>
+                      <MessageSquare style={{ width: 12, height: 12 }} /> WA Agent
                     </button>
                   )}
-                  <div className="flex bg-white/[0.02] rounded-lg p-1 border border-white/[0.06]">
-                    {['all', 'whatsapp', 'email'].map(f => (
-                      <button key={f} onClick={() => setFilter(f as any)} className={`px-4 py-1.5 text-[11px] font-bold tracking-wide uppercase rounded-md transition-all ${filter === f ? 'bg-white/[0.1] text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'}`}>
+                  <div style={{ display: "flex", background: C.white, borderRadius: 9, padding: 3, border: `0.5px solid ${C.border}` }}>
+                    {(['all', 'whatsapp', 'email'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        style={{
+                          padding: "6px 14px", fontSize: 11, fontWeight: 600, textTransform: "capitalize",
+                          borderRadius: 7, border: "none", cursor: "pointer", letterSpacing: "0.02em",
+                          background: filter === f ? C.textMain : "transparent",
+                          color: filter === f ? C.yellow : C.textMid,
+                          transition: "all 0.15s",
+                        }}
+                      >
                         {f}
                       </button>
                     ))}
@@ -1190,70 +1130,97 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin flex flex-col space-y-6">
+              <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 18 }} className="scrollbar-thin">
                 {(waError || emailError) && (
-                  <div className="p-3 mb-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs flex items-center justify-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
+                  <div style={{ padding: 12, marginBottom: 4, borderRadius: 12, background: C.amberBg, border: `0.5px solid ${C.amberBorder}`, color: C.yellowDark, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <AlertCircle style={{ width: 15, height: 15 }} />
                     {waError && emailError ? "All communication channels are currently offline." : waError ? "WhatsApp channel sync failed. Showing email logs only." : "Email sync failed. Showing WhatsApp logs only."}
                   </div>
                 )}
                 {timelineLoading && timeline.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3"><Loader2 className="w-8 h-8 animate-spin text-neon-cyan" /></div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}><Loader2 style={{ width: 30, height: 30, color: C.yellowDark }} className="animate-spin" /></div>
                 ) : filteredTimeline.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground"><MessageSquare className="w-8 h-8 opacity-40" /><p className="text-sm font-medium">No messages yet on this filter.</p></div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: C.textFaint }}>
+                    <MessageSquare style={{ width: 30, height: 30, opacity: 0.4 }} />
+                    <p style={{ fontSize: 13, fontWeight: 600, color: C.textMid, margin: 0 }}>No messages yet on this filter.</p>
+                  </div>
                 ) : (
-                  filteredTimeline.map((msg, i) => (
-                    <motion.div key={msg.id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.5) }}
-                      className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-4 text-sm flex flex-col gap-1.5 shadow-md border ${
-                        msg.direction === 'outbound' ? "bg-gradient-to-br from-neon-purple/10 to-neon-cyan/5 border-neon-cyan/20 rounded-tr-sm" : msg.type === 'whatsapp' ? "bg-green-500/10 border-green-500/20 rounded-tl-sm" : "bg-blue-500/10 border-blue-500/20 rounded-tl-sm"
-                      }`}>
-                        <div className="flex items-center gap-4 mb-2 justify-between">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase opacity-90">
-                            {msg.type === 'whatsapp' ? <MessageSquare className="w-3.5 h-3.5 text-green-400" /> : <Mail className="w-3.5 h-3.5 text-blue-400" />}
-                            <span className={msg.type === 'whatsapp' ? 'text-green-400' : 'text-blue-400'}>{msg.type}</span>
+                  filteredTimeline.map((msg, i) => {
+                    const cs = channelStyle[msg.type];
+                    return (
+                      <motion.div key={msg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.4) }}
+                        style={{ display: "flex", justifyContent: msg.direction === 'outbound' ? "flex-end" : "flex-start" }}
+                      >
+                        <div style={{
+                          maxWidth: "72%", borderRadius: 16, padding: "16px 18px", fontSize: 13.5, display: "flex",
+                          flexDirection: "column", gap: 7, boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                          border: `0.5px solid ${msg.direction === 'outbound' ? C.yellowBorder : cs.border}`,
+                          background: msg.direction === 'outbound' ? C.yellowBg : C.white,
+                          borderTopRightRadius: msg.direction === 'outbound' ? 4 : 16,
+                          borderTopLeftRadius: msg.direction === 'outbound' ? 16 : 4,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 4, justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              {msg.type === 'whatsapp' ? <MessageSquare style={{ width: 13, height: 13, color: C.green }} /> : <Mail style={{ width: 13, height: 13, color: C.blue }} />}
+                              <span style={{ color: cs.color }}>{cs.label}</span>
+                              {msg.direction === 'outbound' && (
+                                <span style={{ fontSize: 9, color: msg.status === 'simulated' ? C.purple : C.yellowDark, background: msg.status === 'simulated' ? C.purpleBg : C.yellowBg, padding: "1px 6px", borderRadius: 999, fontWeight: 600 }}>
+                                  {msg.status === 'simulated' ? 'AI Agent' : 'Manual'}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 10, color: C.textFaint, fontFamily: "'JetBrains Mono', monospace" }}>{new Date(msg.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                           </div>
-                          <span className="text-[10px] opacity-50 text-foreground font-mono">{new Date(msg.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                          {msg.type === 'email' && msg.subject && (
+                            <h4 style={{ fontWeight: 700, color: C.textMain, fontSize: 12, margin: 0, borderBottom: `0.5px solid ${C.border}`, paddingBottom: 8, lineHeight: 1.5 }}>
+                              Subject: <span style={{ fontWeight: 500, color: C.textMid }}>{msg.subject}</span>
+                            </h4>
+                          )}
+                          <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55, color: C.textMain, fontWeight: 500 }}>{msg.body}</div>
+                          {msg.type === 'email' && msg.direction === 'inbound' && !['resolved', 'closed'].includes(msg.status) && (
+                            <div style={{ marginTop: 6, display: "flex", gap: 14, paddingTop: 10, borderTop: `0.5px solid ${C.border}` }}>
+                              <button onClick={() => handleUpdateEmailStatus(msg.id, 'resolved')} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, textTransform: "uppercase", fontWeight: 700, color: C.green, background: "none", border: "none", cursor: "pointer", letterSpacing: "0.03em" }}><CheckCircle style={{ width: 12, height: 12 }} /> Mark Resolved</button>
+                              <button onClick={() => handleUpdateEmailStatus(msg.id, 'closed')} style={{ fontSize: 10.5, textTransform: "uppercase", fontWeight: 700, color: C.textFaint, background: "none", border: "none", cursor: "pointer", letterSpacing: "0.03em" }}>Mark Closed</button>
+                            </div>
+                          )}
+                          {msg.aiReply && msg.type === 'email' && (
+                            <div style={{ marginTop: 8, paddingTop: 10, borderTop: `0.5px solid ${C.yellowBorder}`, background: C.yellowBg, margin: "8px -18px -16px", padding: "10px 18px 14px", borderRadius: "0 0 14px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: C.yellowDark, fontWeight: 700 }}><Sparkles style={{ width: 13, height: 13 }} /> AI Reply:</div>
+                              <p style={{ fontSize: 12, color: C.textMid, fontStyle: "italic", lineHeight: 1.5, margin: 0 }}>{msg.aiReply}</p>
+                            </div>
+                          )}
                         </div>
-                        {msg.type === 'email' && msg.subject && <h4 className="font-bold text-foreground/90 text-xs mb-2 border-b border-white/[0.05] pb-2 leading-relaxed tracking-wide">Subject: <span className="opacity-80 font-medium">{msg.subject}</span></h4>}
-                        <div className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-medium">{msg.body}</div>
-                        {msg.type === 'email' && msg.direction === 'inbound' && !['resolved', 'closed'].includes(msg.status) && (
-                          <div className="mt-2 flex gap-2 pt-2 border-t border-white/[0.06]">
-                            <button onClick={() => handleUpdateEmailStatus(msg.id, 'resolved')} className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-green-400 hover:text-green-300 transition-colors"><CheckCircle className="w-3 h-3" /> Mark Resolved</button>
-                            <button onClick={() => handleUpdateEmailStatus(msg.id, 'closed')} className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-muted-foreground hover:text-white transition-colors">Mark Closed</button>
-                          </div>
-                        )}
-                        {msg.aiReply && msg.type === 'email' && (
-                          <div className="mt-3 pt-3 border-t border-neon-cyan/10 bg-neon-cyan/5 -mx-5 px-5 -mb-4 pb-4 rounded-b-xl flex flex-col gap-1.5">
-                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-neon-cyan font-bold"><Sparkles className="w-3.5 h-3.5" /> AI Reply:</div>
-                            <p className="text-xs text-foreground/80 italic leading-relaxed">{msg.aiReply}</p>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))
+                      </motion.div>
+                    );
+                  })
                 )}
-                <div ref={endOfMessagesRef} className="h-1 shrink-0" />
+                <div ref={endOfMessagesRef} style={{ height: 4, flexShrink: 0 }} />
               </div>
 
-              <div className="bg-background border-t border-white/[0.06] shrink-0 sticky bottom-0 z-20">
-                <div className="px-6 py-4 bg-white/[0.01]">
-                  <div className="flex items-center gap-3">
-                    <button className="p-2.5 rounded-lg hover:bg-white/[0.06] text-muted-foreground transition-all"><Paperclip className="w-5 h-5" /></button>
+              <div style={{ background: C.creamDeep, borderTop: `0.5px solid ${C.border}`, flexShrink: 0, position: "sticky", bottom: 0, zIndex: 20 }}>
+                <div style={{ padding: "16px 24px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button style={{ padding: 10, borderRadius: 10, background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><Paperclip style={{ width: 18, height: 18 }} /></button>
                     <input
                       value={messageText}
                       onChange={e => setMessageText(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
-                      className="flex-1 bg-white/[0.03] border border-white/[0.08] shadow-inner rounded-xl px-5 py-3.5 text-sm focus:outline-none focus:border-neon-cyan/50 focus:bg-white/[0.05] transition-all"
+                      style={{
+                        flex: 1, background: C.white, border: `0.5px solid ${C.border}`, borderRadius: 12,
+                        padding: "13px 18px", fontSize: 13.5, outline: "none", color: C.textMain,
+                      }}
                       placeholder={filter === 'email' ? `Reply via Email to ${customerProfile.name}…` : `Message ${customerProfile.name} via WhatsApp…`}
                     />
                     <button
                       disabled={sending || !messageText.trim()}
                       onClick={handleSendMessage}
-                      className="p-3.5 rounded-xl bg-gradient-to-br from-neon-cyan to-neon-purple text-background shadow-lg shadow-neon-cyan/20 hover:shadow-neon-cyan/40 transition-all scale-100 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-50 disabled:grayscale"
+                      style={{
+                        padding: 13, borderRadius: 12, background: C.textMain, color: C.yellow, border: "none",
+                        cursor: sending || !messageText.trim() ? "not-allowed" : "pointer",
+                        opacity: sending || !messageText.trim() ? 0.5 : 1, display: "flex", alignItems: "center",
+                      }}
                     >
-                      {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                      {sending ? <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" /> : <Send style={{ width: 18, height: 18 }} />}
                     </button>
                   </div>
                 </div>
@@ -1267,72 +1234,80 @@ export default function InboxPage() {
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: "100%", opacity: 0 }}
                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                    className="absolute bottom-0 left-0 right-0 z-50 bg-[#1e1b4b]/95 backdrop-blur-xl border-t-[3px] border-indigo-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto flex flex-col"
+                    style={{
+                      position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 50, background: C.white,
+                      borderTop: `3px solid ${C.blue}`, boxShadow: "0 -10px 40px rgba(0,0,0,0.08)",
+                      maxHeight: "90%", overflowY: "auto", display: "flex", flexDirection: "column",
+                    }}
                   >
-                    <div className="flex items-center justify-between p-5 border-b border-indigo-500/20 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-indigo-400" />
-                        <span className="font-bold text-sm text-indigo-100 uppercase tracking-widest">AI Email Agent</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.blueBg }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Sparkles style={{ width: 17, height: 17, color: C.blue }} />
+                        <span style={{ fontWeight: 700, fontSize: 12.5, color: C.blue, textTransform: "uppercase", letterSpacing: "0.06em" }}>AI Email Agent</span>
                       </div>
-                      <button onClick={() => setEmailAgentOpen(false)} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-indigo-200 transition-colors">
-                        <span className="text-xl leading-none">&times;</span>
+                      <button onClick={() => setEmailAgentOpen(false)} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "50%", color: C.blue, cursor: "pointer" }}>
+                        <X style={{ width: 16, height: 16 }} />
                       </button>
                     </div>
 
-                    <div className="p-5 overflow-y-auto flex-1 scrollbar-thin">
-                      <div className="mb-4">
-                        <button onClick={() => setEmailAgentContextOpen(!emailAgentContextOpen)} className="text-[10px] font-bold text-indigo-300 hover:text-indigo-200 uppercase tracking-wider mb-2 flex items-center gap-1 transition-colors">
+                    <div style={{ padding: 20, flex: 1, overflowY: "auto" }}>
+                      <div style={{ marginBottom: 14 }}>
+                        <button onClick={() => setEmailAgentContextOpen(!emailAgentContextOpen)} style={{ fontSize: 10.5, fontWeight: 700, color: C.blue, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer" }}>
                           {emailAgentContextOpen ? '▼ Hide Context' : '▶ View Context'}
                         </button>
                         {emailAgentContextOpen && (
-                          <div className="p-3 bg-black/40 rounded-lg border border-indigo-500/20 space-y-3 mb-2 max-h-48 overflow-y-auto text-xs shadow-inner">
+                          <div style={{ padding: 12, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 10, marginBottom: 8, maxHeight: 180, overflowY: "auto", fontSize: 12 }}>
                             {emailAgentContext.map(m => (
-                              <div key={m.id} className={`flex flex-col ${m.direction === 'inbound' ? 'text-indigo-200' : 'text-indigo-100/50'}`}>
-                                <span className="font-bold opacity-80 uppercase tracking-wider text-[9px] mb-0.5">{m.direction === 'inbound' ? 'Customer:' : 'Bank:'}</span>
-                                <span className="truncate whitespace-normal leading-relaxed">{m.body}</span>
+                              <div key={m.id} style={{ display: "flex", flexDirection: "column", color: m.direction === 'inbound' ? C.textMain : C.textFaint }}>
+                                <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontSize: 9.5, marginBottom: 2, opacity: 0.7 }}>{m.direction === 'inbound' ? 'Customer:' : 'Bank:'}</span>
+                                <span style={{ lineHeight: 1.5, whiteSpace: "normal" }}>{m.body}</span>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
 
-                      <div className="border-l-4 border-indigo-500 pl-4 mb-6 relative">
+                      <div style={{ borderLeft: `4px solid ${C.blue}`, paddingLeft: 14, marginBottom: 20 }}>
                         {emailAgentLoading ? (
-                          <div className="w-full h-32 bg-indigo-500/10 animate-pulse rounded-xl border border-indigo-500/20" />
+                          <div style={{ width: "100%", height: 130, background: C.blueBg, borderRadius: 12, border: `0.5px solid ${C.blueBorder}` }} className="animate-pulse" />
                         ) : (
                           <textarea
                             value={emailAgentSuggestion}
                             onChange={e => setEmailAgentSuggestion(e.target.value)}
-                            className="w-full bg-black/30 border border-indigo-500/30 rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-400 text-indigo-50 min-h-[140px] resize-none leading-relaxed transition-all shadow-inner"
+                            style={{
+                              width: "100%", background: C.cream, border: `0.5px solid ${C.blueBorder}`, borderRadius: 12,
+                              padding: 14, fontSize: 13.5, outline: "none", color: C.textMain, minHeight: 140,
+                              resize: "none", lineHeight: 1.55,
+                            }}
                           />
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <button
                             onClick={handleEmailAgentRegenerate}
                             disabled={emailAgentLoading || emailAgentRegenerating}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-indigo-500/50 text-indigo-300 font-bold hover:bg-indigo-500/20 transition-all text-[11px] uppercase tracking-wider disabled:opacity-50"
+                            style={ghostBtn(C.blue, C.blueBg, C.blueBorder)}
                           >
-                            <RefreshCw className={`w-3.5 h-3.5 ${emailAgentRegenerating ? 'animate-spin' : ''}`} />
+                            <RefreshCw style={{ width: 13, height: 13 }} className={emailAgentRegenerating ? "animate-spin" : ""} />
                             Regenerate
                           </button>
                           <button
                             onClick={handleEmailAgentSend}
                             disabled={emailAgentLoading || emailAgentRegenerating || emailAgentSending || !emailAgentSuggestion.trim()}
-                            className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-bold transition-all text-sm shadow-[0_0_15px_rgba(99,102,241,0.4)] disabled:opacity-50 disabled:grayscale"
+                            style={primaryBtn(emailAgentLoading || emailAgentRegenerating || emailAgentSending || !emailAgentSuggestion.trim())}
                           >
-                            {emailAgentSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            {emailAgentSending ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <Send style={{ width: 14, height: 14 }} />}
                             Send Reply
                           </button>
                         </div>
                         <button
                           onClick={handleEmailAgentAutoReplyAll}
                           disabled={emailAgentSending || emailAgentLoading || emailAgentRegenerating}
-                          className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition-all text-[11px] shadow-[0_0_15px_rgba(34,197,94,0.4)] uppercase tracking-wider disabled:opacity-50"
+                          style={ghostBtn(C.green, C.greenBg, C.greenBorder)}
                         >
-                          <Zap className="w-3.5 h-3.5" />
+                          <Zap style={{ width: 13, height: 13 }} />
                           Auto Reply All
                         </button>
                       </div>
@@ -1349,56 +1324,64 @@ export default function InboxPage() {
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: "100%", opacity: 0 }}
                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                    className="absolute bottom-0 left-0 right-0 z-[60] bg-[#022c22]/95 backdrop-blur-xl border-t-[3px] border-green-500 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto flex flex-col"
+                    style={{
+                      position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 60, background: C.white,
+                      borderTop: `3px solid ${C.green}`, boxShadow: "0 -10px 40px rgba(0,0,0,0.08)",
+                      maxHeight: "90%", overflowY: "auto", display: "flex", flexDirection: "column",
+                    }}
                   >
-                    <div className="flex items-center justify-between p-5 border-b border-green-500/20 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-5 h-5 text-green-400" />
-                        <span className="font-bold text-sm text-green-100 uppercase tracking-widest">AI WhatsApp Agent</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottom: `0.5px solid ${C.border}`, flexShrink: 0, background: C.greenBg }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <MessageSquare style={{ width: 17, height: 17, color: C.green }} />
+                        <span style={{ fontWeight: 700, fontSize: 12.5, color: C.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>AI WhatsApp Agent</span>
                       </div>
-                      <button onClick={() => setWaAgentOpen(false)} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-green-200 transition-colors">
-                        <span className="text-xl leading-none">&times;</span>
+                      <button onClick={() => setWaAgentOpen(false)} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: "50%", color: C.green, cursor: "pointer" }}>
+                        <X style={{ width: 16, height: 16 }} />
                       </button>
                     </div>
 
-                    <div className="p-5 overflow-y-auto flex-1 scrollbar-thin">
-                      <div className="border-l-4 border-green-500 pl-4 mb-6 relative">
+                    <div style={{ padding: 20, flex: 1, overflowY: "auto" }}>
+                      <div style={{ borderLeft: `4px solid ${C.green}`, paddingLeft: 14, marginBottom: 20 }}>
                         {waAgentLoading ? (
-                          <div className="w-full h-32 bg-green-500/10 animate-pulse rounded-xl border border-green-500/20" />
+                          <div style={{ width: "100%", height: 130, background: C.greenBg, borderRadius: 12, border: `0.5px solid ${C.greenBorder}` }} className="animate-pulse" />
                         ) : (
                           <textarea
                             value={waAgentSuggestion}
                             onChange={e => setWaAgentSuggestion(e.target.value)}
-                            className="w-full bg-black/30 border border-green-500/30 rounded-xl p-4 text-sm focus:outline-none focus:border-green-400 text-green-50 min-h-[140px] resize-none leading-relaxed transition-all shadow-inner"
+                            style={{
+                              width: "100%", background: C.cream, border: `0.5px solid ${C.greenBorder}`, borderRadius: 12,
+                              padding: 14, fontSize: 13.5, outline: "none", color: C.textMain, minHeight: 140,
+                              resize: "none", lineHeight: 1.55,
+                            }}
                           />
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <button
                             onClick={handleWaAgentRegenerate}
                             disabled={waAgentLoading || waAgentRegenerating}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-green-500/50 text-green-300 font-bold hover:bg-green-500/20 transition-all text-[11px] uppercase tracking-wider disabled:opacity-50"
+                            style={ghostBtn(C.green, C.greenBg, C.greenBorder)}
                           >
-                            <RefreshCw className={`w-3.5 h-3.5 ${waAgentRegenerating ? 'animate-spin' : ''}`} />
+                            <RefreshCw style={{ width: 13, height: 13 }} className={waAgentRegenerating ? "animate-spin" : ""} />
                             Regenerate
                           </button>
                           <button
                             onClick={handleWaAgentSend}
                             disabled={waAgentLoading || waAgentRegenerating || waAgentSending || !waAgentSuggestion?.trim()}
-                            className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold transition-all text-sm shadow-[0_0_15px_rgba(34,197,94,0.4)] disabled:opacity-50 disabled:grayscale"
+                            style={primaryBtn(waAgentLoading || waAgentRegenerating || waAgentSending || !waAgentSuggestion?.trim())}
                           >
-                            {waAgentSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            {waAgentSending ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <Send style={{ width: 14, height: 14 }} />}
                             Send Reply
                           </button>
                         </div>
                         <button
                           onClick={handleWaAgentAutoReplyAll}
                           disabled={waAgentSending || waAgentLoading || waAgentRegenerating}
-                          className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all text-[11px] shadow-[0_0_15px_rgba(16,185,129,0.4)] uppercase tracking-wider disabled:opacity-50"
+                          style={ghostBtn(C.yellowDark, C.yellowBg, C.yellowBorder)}
                         >
-                          <Zap className="w-3.5 h-3.5" />
+                          <Zap style={{ width: 13, height: 13 }} />
                           Auto Reply All
                         </button>
                       </div>
@@ -1414,74 +1397,74 @@ export default function InboxPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+                    style={{ position: "absolute", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,26,26,0.45)", padding: 24 }}
                   >
                     <motion.div
-                      initial={{ scale: 0.95, opacity: 0 }}
+                      initial={{ scale: 0.96, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.95, opacity: 0 }}
-                      className="bg-[#1e1b4b] border border-indigo-500/40 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden flex flex-col"
+                      exit={{ scale: 0.96, opacity: 0 }}
+                      style={{ background: C.white, border: `0.5px solid ${C.yellowBorder}`, boxShadow: "0 24px 60px rgba(0,0,0,0.18)", borderRadius: 18, width: "100%", maxWidth: 480, overflow: "hidden", display: "flex", flexDirection: "column" }}
                     >
-                      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border-b border-indigo-500/20">
-                        <h3 className="flex items-center gap-2 text-indigo-100 font-bold"><Sparkles className="w-4 h-4 text-purple-400" /> Customer Intelligence Report</h3>
-                        <button onClick={() => setOmniModalOpen(false)} className="text-indigo-300 hover:text-white transition-colors" disabled={omniDrafting}><span className="text-xl leading-none">&times;</span></button>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, background: C.yellowBg, borderBottom: `0.5px solid ${C.yellowBorder}` }}>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: 8, color: C.textMain, fontWeight: 700, fontSize: 14, margin: 0 }}><Sparkles style={{ width: 15, height: 15, color: C.yellowDark }} /> Customer Intelligence Report</h3>
+                        <button onClick={() => setOmniModalOpen(false)} disabled={omniDrafting} style={{ color: C.textMid, background: "none", border: "none", cursor: "pointer" }}><X style={{ width: 17, height: 17 }} /></button>
                       </div>
-                      <div className="p-6">
+                      <div style={{ padding: 22 }}>
                         {omniLoading ? (
-                          <div className="flex flex-col items-center justify-center py-8 gap-3 text-indigo-300">
-                            <Loader2 className="w-8 h-8 animate-spin" />
-                            <span className="text-sm font-medium">Generating Report...</span>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 0", gap: 12, color: C.yellowDark }}>
+                            <Loader2 style={{ width: 30, height: 30 }} className="animate-spin" />
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>Generating Report...</span>
                           </div>
                         ) : omniReport ? (
-                          <div className="space-y-5">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Sentiment</span>
-                                <div className={`text-sm font-bold flex items-center gap-1.5 ${['angry', 'negative'].includes(omniReport.sentiment?.toLowerCase()) ? 'text-red-400' : ['positive'].includes(omniReport.sentiment?.toLowerCase()) ? 'text-green-400' : 'text-yellow-400'}`}>
-                                  <Smile className="w-4 h-4" /> {omniReport.sentiment}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                              <div style={{ padding: 12, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}` }}>
+                                <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginBottom: 4, display: "block" }}>Sentiment</span>
+                                <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: ['angry', 'negative'].includes(omniReport.sentiment?.toLowerCase()) ? C.red : ['positive'].includes(omniReport.sentiment?.toLowerCase()) ? C.green : C.amber }}>
+                                  <Smile style={{ width: 14, height: 14 }} /> {omniReport.sentiment}
                                 </div>
                               </div>
-                              <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Urgency</span>
-                                <div className={`text-sm font-bold flex items-center gap-1.5 ${omniReport.urgency?.toLowerCase() === 'high' ? 'text-red-400' : omniReport.urgency?.toLowerCase() === 'low' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                  <Zap className="w-4 h-4" /> {omniReport.urgency}
+                              <div style={{ padding: 12, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}` }}>
+                                <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginBottom: 4, display: "block" }}>Urgency</span>
+                                <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: omniReport.urgency?.toLowerCase() === 'high' ? C.red : omniReport.urgency?.toLowerCase() === 'low' ? C.green : C.amber }}>
+                                  <Zap style={{ width: 14, height: 14 }} /> {omniReport.urgency}
                                 </div>
                               </div>
-                              <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Resolved Status</span>
-                                <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                                  {omniReport.isResolved ? <CheckCircle className="w-4 h-4 text-green-400" /> : <AlertCircle className="w-4 h-4 text-red-400" />}
+                              <div style={{ padding: 12, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}` }}>
+                                <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginBottom: 4, display: "block" }}>Resolved Status</span>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: C.textMain, display: "flex", alignItems: "center", gap: 6 }}>
+                                  {omniReport.isResolved ? <CheckCircle style={{ width: 14, height: 14, color: C.green }} /> : <AlertCircle style={{ width: 14, height: 14, color: C.red }} />}
                                   {omniReport.isResolved ? 'Resolved' : 'Needs Action'}
                                 </div>
                               </div>
-                              <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05]">
-                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Channels</span>
-                                <div className="flex gap-2">
+                              <div style={{ padding: 12, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}` }}>
+                                <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginBottom: 4, display: "block" }}>Channels</span>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                                   {(omniReport.channelsUsed || []).map((ch: string) => (
-                                    <span key={ch} className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-white/10 text-white/90">{ch}</span>
+                                    <span key={ch} style={pill(C.textMain, C.border, C.border)}>{ch}</span>
                                   ))}
                                 </div>
                               </div>
                             </div>
-                            <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.05]">
-                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Main Issue</span>
-                              <p className="text-sm font-medium text-indigo-50/90 leading-relaxed">{omniReport.mainIssue || "Unknown"}</p>
+                            <div style={{ padding: 14, background: C.cream, borderRadius: 12, border: `0.5px solid ${C.border}` }}>
+                              <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.textFaint, fontWeight: 700, marginBottom: 4, display: "block" }}>Main Issue</span>
+                              <p style={{ fontSize: 13, fontWeight: 500, color: C.textMain, lineHeight: 1.55, margin: 0 }}>{omniReport.mainIssue || "Unknown"}</p>
                             </div>
-                            <div className="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/30">
-                              <span className="text-[10px] uppercase tracking-wider text-indigo-300 font-bold mb-1 block flex items-center gap-1"><Sparkles className="w-3 h-3" /> Recommendation</span>
-                              <p className="text-sm font-medium text-indigo-100 leading-relaxed">{omniReport.recommendation || "N/A"}</p>
+                            <div style={{ padding: 14, background: C.yellowBg, borderRadius: 12, border: `0.5px solid ${C.yellowBorder}` }}>
+                              <span style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.06em", color: C.yellowDark, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}><Sparkles style={{ width: 11, height: 11 }} /> Recommendation</span>
+                              <p style={{ fontSize: 13, fontWeight: 500, color: C.textMain, lineHeight: 1.55, margin: 0 }}>{omniReport.recommendation || "N/A"}</p>
                             </div>
                           </div>
                         ) : (
-                          <div className="text-center py-6 text-red-400 text-sm">Could not load report.</div>
+                          <div style={{ textAlign: "center", padding: "24px 0", color: C.red, fontSize: 13 }}>Could not load report.</div>
                         )}
 
-                        <div className="mt-6 flex gap-3">
-                          <button onClick={handleOmniDraftWa} disabled={omniLoading || omniDrafting} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/40 text-green-400 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50">
-                            {omniDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />} Draft WA Reply
+                        <div style={{ marginTop: 22, display: "flex", gap: 10 }}>
+                          <button onClick={handleOmniDraftWa} disabled={omniLoading || omniDrafting} style={{ ...ghostBtn(C.green, C.greenBg, C.greenBorder), flex: 1, justifyContent: "center", padding: "11px 0" }}>
+                            {omniDrafting ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <MessageSquare style={{ width: 14, height: 14 }} />} Draft WA Reply
                           </button>
-                          <button onClick={handleOmniDraftEmail} disabled={omniLoading || omniDrafting} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-400 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50">
-                            {omniDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Draft Email Reply
+                          <button onClick={handleOmniDraftEmail} disabled={omniLoading || omniDrafting} style={{ ...ghostBtn(C.blue, C.blueBg, C.blueBorder), flex: 1, justifyContent: "center", padding: "11px 0" }}>
+                            {omniDrafting ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <Mail style={{ width: 14, height: 14 }} />} Draft Email Reply
                           </button>
                         </div>
                       </div>
@@ -1491,86 +1474,14 @@ export default function InboxPage() {
               </AnimatePresence>
             </div>
           </>
-        ) : inboxMode === 'agent' && activeAgentEmail ? (
-          /* === RENDER AGENT DEDICATED VIEW === */
-          <>
-            <div className="flex-1 flex flex-col bg-grid-white/[0.01] bg-[size:32px_32px]">
-              <div className="h-16 px-6 border-b border-white/[0.06] bg-background/50 backdrop-blur-md flex items-center shrink-0">
-                <h2 className="font-semibold text-foreground/90 flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-indigo-400" /> Thread History — <span className="opacity-80 font-normal ml-1">{activeAgentEmail.customerId?.name}</span>
-                </h2>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin flex flex-col space-y-6">
-                {agentHistoryLoading ? (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
-                  </div>
-                ) : (
-                  agentHistory.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-4 text-sm flex flex-col gap-1.5 shadow-md border ${
-                        msg.direction === 'outbound' ? "bg-white/[0.03] border-white/[0.08] rounded-tr-sm" : "bg-blue-500/10 border-blue-500/20 rounded-tl-sm"
-                      }`}>
-                        <div className="flex items-center gap-4 mb-2 justify-between">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase opacity-90 text-blue-400">
-                            <Mail className="w-3.5 h-3.5" /> EMAIL
-                          </div>
-                          <span className="text-[10px] opacity-50 text-foreground font-mono">{new Date(msg.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                        </div>
-                        {msg.subject && <h4 className="font-bold text-foreground/90 text-xs mb-2 border-b border-white/[0.05] pb-2 leading-relaxed tracking-wide">Subject: <span className="opacity-80 font-medium">{msg.subject}</span></h4>}
-                        <div className="whitespace-pre-wrap leading-relaxed text-foreground/90 font-medium">{msg.body}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-                <div ref={endOfMessagesRef} className="h-1 shrink-0" />
-              </div>
-
-              <div className="shrink-0 p-6 bg-background border-t border-white/[0.06]">
-                <div className="bg-[#1e1b4b]/30 border-l-[3px] border-indigo-500 rounded-r-xl p-5 relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-4 relative z-10">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-6 h-6 rounded bg-indigo-500/20 text-indigo-400">
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="font-bold text-sm text-indigo-100 uppercase tracking-widest">AI Suggested Reply</span>
-                    </div>
-                  </div>
-                  <textarea
-                    value={editReplyText}
-                    onChange={e => setEditReplyText(e.target.value)}
-                    placeholder="AI suggested response will appear here..."
-                    className="w-full bg-black/20 border border-indigo-500/20 rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500/50 transition-colors mb-4 min-h-[120px] resize-none text-indigo-50/90 leading-relaxed font-medium block relative z-10"
-                  />
-                  <div className="flex items-center justify-end gap-3 relative z-10">
-                    <button
-                      onClick={handleAgentRegenerate}
-                      disabled={regenerating}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-indigo-500/30 text-indigo-300 font-bold hover:bg-indigo-500/10 transition-colors text-xs uppercase tracking-wider disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
-                      Regenerate
-                    </button>
-                    <button
-                      onClick={handleAgentSend}
-                      disabled={sendingAgent || !editReplyText.trim()}
-                      className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-bold transition-all text-sm shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] disabled:opacity-50 disabled:grayscale"
-                    >
-                      {sendingAgent && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Send Reply <Send className="w-4 h-4 ml-1" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center bg-background/50">
-            <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shadow-lg">
-              {inboxMode === 'agent' ? <Bot className="w-8 h-8 text-indigo-500/50" /> : <MessageSquare className="w-8 h-8 text-neon-cyan/50" />}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, textAlign: "center", background: C.cream }}>
+            <div style={{ width: 76, height: 76, borderRadius: "50%", background: C.white, border: `0.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.04)" }}>
+              <MessageSquare style={{ width: 30, height: 30, color: C.yellowDark, opacity: 0.6 }} />
             </div>
-            <p className="text-sm text-muted-foreground font-medium">Select a {inboxMode === 'agent' ? 'pending AI email ticket' : 'customer from the inbox'} to orchestrate communication.</p>
+            <p style={{ fontSize: 13.5, color: C.textMid, fontWeight: 500, maxWidth: 280, margin: 0 }}>
+              Select a customer from the inbox to orchestrate communication.
+            </p>
           </div>
         )}
       </div>

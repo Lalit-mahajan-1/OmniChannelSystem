@@ -8,6 +8,27 @@ import { useAuth } from "@/context/AuthContext";
 
 const BASE = import.meta.env.VITE_API_URL;
 
+/* ─── palette ─── */
+const C = {
+  cream: "#FFF8E7",
+  creamDeep: "#FFFDF5",
+  white: "#FFFFFF",
+  border: "#F0E4C8",
+  textMain: "#1A1A1A",
+  textMid: "#8A8578",
+  textFaint: "#B0A99A",
+  yellow: "#FFC107",
+  yellowDark: "#B8860B",
+  yellowBg: "#FFF3CD",
+  yellowBorder: "#FFE082",
+  green: "#B8860B",
+  greenBg: "#FFF3CD",
+  blue: "#185FA5",
+  blueBg: "#E6F1FB",
+  amber: "#854F0B",
+  amberBg: "#FAEEDA",
+};
+
 interface UserDetails {
   _id: string;
   name: string;
@@ -413,54 +434,54 @@ export default function SocialComplaintsPage() {
 
   // UI Helpers
   const getSeverityStyle = (priority: string) => {
-    if (priority === 'critical') return { background: 'linear-gradient(180deg,#EF4444,#7F1D1D)', boxShadow: '0 0 8px rgba(239,68,68,0.4)', textLabel: 'CRITICAL', labelBg: 'rgba(239,68,68,0.15)', labelText: '#FCA5A5', labelBorder: '1px solid rgba(239,68,68,0.3)' };
-    if (priority === 'high') return { background: 'linear-gradient(180deg,#EF4444,#DC2626)', boxShadow: 'none', textLabel: 'HIGH', labelBg: 'rgba(239,68,68,0.1)', labelText: '#FCA5A5', labelBorder: '1px solid rgba(239,68,68,0.2)' };
-    if (priority === 'medium') return { background: 'linear-gradient(180deg,#F59E0B,#D97706)', boxShadow: 'none', textLabel: 'MEDIUM', labelBg: 'rgba(245,158,11,0.12)', labelText: '#FCD34D', labelBorder: '1px solid rgba(245,158,11,0.25)' };
-    return { background: 'linear-gradient(180deg,#60A5FA,#3B82F6)', boxShadow: 'none', textLabel: 'LOW', labelBg: 'rgba(96,165,250,0.1)', labelText: '#93C5FD', labelBorder: '1px solid rgba(96,165,250,0.2)' };
+    if (priority === 'critical') return { background: C.yellowDark, boxShadow: 'none', textLabel: 'CRITICAL', labelBg: C.yellowBg, labelText: C.yellowDark, labelBorder: `1px solid ${C.yellowBorder}` };
+    if (priority === 'high') return { background: C.amber, boxShadow: 'none', textLabel: 'HIGH', labelBg: C.amberBg, labelText: C.yellowDark, labelBorder: `1px solid ${C.amberBg}` };
+    if (priority === 'medium') return { background: C.amber, boxShadow: 'none', textLabel: 'MEDIUM', labelBg: C.amberBg, labelText: C.amber, labelBorder: `1px solid ${C.amberBg}` };
+    return { background: C.blue, boxShadow: 'none', textLabel: 'LOW', labelBg: C.blueBg, labelText: C.blue, labelBorder: `1px solid ${C.blueBg}` };
   };
 
   const getStatusBadge = (status: string) => {
     if (status === 'new') return <span className="badge-green">NEW</span>;
     if (status === 'assigned') return <span className="badge-blue">ASSIGNED</span>;
-    return <span style={{ background: 'rgba(255,255,255,0.07)', color: '#94A3B8', padding: '3px 10px', borderRadius: '100px', fontSize: '11px', textTransform: 'uppercase' }}>{status.replace('_', ' ')}</span>;
+    return <span style={{ background: C.creamDeep, color: C.textMid, padding: '3px 10px', borderRadius: '100px', fontSize: '11px', textTransform: 'uppercase' }}>{status.replace('_', ' ')}</span>;
   };
 
   return (
     <div style={{ padding: 0, margin: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       
       {/* Page Header */}
-      <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="section-eyebrow">SOCIAL INTELLIGENCE</div>
+      <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
+        <div className="section-eyebrow">CUSTOMER COMPLAINTS</div>
         <h1 className="page-title" style={{ margin: '0' }}>Complaint Box</h1>
         
         {stats && (
           <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 16px' }}>
               <BarChart3 style={{ width: '14px', height: '14px', color: '#60A5FA' }} />
               <div>
-                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.total}</span>
-                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>TOTAL EXTRACTED</span>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: C.textMain, fontWeight: 600 }}>{stats.total}</span>
+                <span style={{ fontSize: '11px', color: C.textFaint, textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>TOTAL EXTRACTED</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 16px' }}>
               <AlertTriangle style={{ width: '14px', height: '14px', color: '#F59E0B' }} />
               <div>
-                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.complaints}</span>
-                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>COMPLAINTS</span>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: C.textMain, fontWeight: 600 }}>{stats.complaints}</span>
+                <span style={{ fontSize: '11px', color: C.textFaint, textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>COMPLAINTS</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 16px' }}>
               <CheckCircle style={{ width: '14px', height: '14px', color: '#3ECF6A' }} />
               <div>
-                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.status.resolved + stats.status.closed}</span>
-                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>RESOLVED</span>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: C.textMain, fontWeight: 600 }}>{stats.status.resolved + stats.status.closed}</span>
+                <span style={{ fontSize: '11px', color: C.textFaint, textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>RESOLVED</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 16px' }}>
               <UserPlus style={{ width: '14px', height: '14px', color: '#A78BFA' }} />
               <div>
-                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: '#F1F5F9', fontWeight: 600 }}>{stats.unassigned}</span>
-                <span style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>UNASSIGNED</span>
+                <span style={{ font: 'var(--font-data)', fontSize: '22px', color: C.textMain, fontWeight: 600 }}>{stats.unassigned}</span>
+                <span style={{ fontSize: '11px', color: C.textFaint, textTransform: 'uppercase', letterSpacing: '0.07em', marginLeft: '6px' }}>UNASSIGNED</span>
               </div>
             </div>
           </div>
@@ -468,35 +489,37 @@ export default function SocialComplaintsPage() {
       </div>
 
       {/* Filter Bar */}
-      <div style={{ padding: '16px 24px', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', flexWrap: 'wrap' }}>
+      <div style={{ padding: '16px 24px', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
         <input
           value={scrapeKeyword}
           onChange={(e) => setScrapeKeyword(e.target.value)}
           placeholder="Keyword to scrape..."
-          style={{ flex: 1, minWidth: '150px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '10px', padding: '10px 16px', color: '#F1F5F9', fontSize: '14px', outline: 'none' }}
+          style={{ flex: 1, minWidth: '150px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 16px', color: C.textMain, fontSize: '14px', outline: 'none' }}
         />
         <button onClick={handleScrape} disabled={scraping} className="btn-primary-db" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {scraping ? <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} /> : <Zap style={{ width: '14px', height: '14px' }} />}
           SCRAPE
         </button>
-        {scrapeResult && <span style={{ fontSize: '12px', color: '#3ECF6A', marginLeft: '8px' }}>{scrapeResult}</span>}
+        {scrapeResult && <span style={{ fontSize: '12px', color: C.yellowDark, marginLeft: '8px' }}>{scrapeResult}</span>}
         
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '12px', alignItems: 'center' }}>
           <form onSubmit={handleSearch} style={{ position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: '#94A3B8' }} />
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: C.textMid }} />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '10px', padding: '10px 14px 10px 36px', color: '#F1F5F9', fontSize: '13px', outline: 'none', width: '220px' }}
+              style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 14px 10px 36px', color: C.textMain, fontSize: '13px', outline: 'none', width: '220px' }}
             />
           </form>
           <select
             value={platformFilter}
             onChange={(e) => { setPage(1); setPlatformFilter(e.target.value); }}
-            style={{ background: '#181C22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#94A3B8', fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+            style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 14px', color: C.textMid, fontSize: '13px', outline: 'none', cursor: 'pointer' }}
           >
-            <option value="">All Platforms</option>
+            <option value="">All Channels</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="email">Email</option>
             <option value="twitter">Twitter</option>
             <option value="reddit">Reddit</option>
             <option value="youtube">YouTube</option>
@@ -504,7 +527,7 @@ export default function SocialComplaintsPage() {
           <select
             value={statusFilter}
             onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
-            style={{ background: '#181C22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#94A3B8', fontSize: '13px', outline: 'none', cursor: 'pointer' }}
+            style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 14px', color: C.textMid, fontSize: '13px', outline: 'none', cursor: 'pointer' }}
           >
             <option value="">All Statuses</option>
             <option value="new">New</option>
@@ -521,10 +544,10 @@ export default function SocialComplaintsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', flex: 1, overflow: 'hidden' }}>
         
         {/* Complaints List */}
-        <div className="scrollbar-thin" style={{ borderRight: '1px solid rgba(255,255,255,0.07)', overflowY: 'auto', padding: '16px 24px' }}>
-          {loading && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100px', color: '#94A3B8', gap: '8px' }}><Loader2 style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} /> Loading...</div>}
-          {error && !loading && <div style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</div>}
-          {!loading && !error && complaints.length === 0 && <div style={{ color: '#94A3B8', textAlign: 'center', padding: '40px' }}>No complaints found.</div>}
+        <div className="scrollbar-thin" style={{ borderRight: `1px solid ${C.border}`, overflowY: 'auto', padding: '16px 24px' }}>
+          {loading && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100px', color: C.textMid, gap: '8px' }}><Loader2 style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} /> Loading...</div>}
+          {error && !loading && <div style={{ color: C.amber, textAlign: 'center', padding: '20px' }}>{error}</div>}
+          {!loading && !error && complaints.length === 0 && <div style={{ color: C.textMid, textAlign: 'center', padding: '40px' }}>No complaints found.</div>}
           
           {!loading && !error && complaints.map((c, i) => {
             const sevStyle = getSeverityStyle(c.priority);
@@ -535,9 +558,9 @@ export default function SocialComplaintsPage() {
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }}
                 onClick={() => fetchComplaintDetails(c._id)}
                 style={{
-                  background: isSelected ? 'rgba(62,207,106,0.04)' : 'rgba(255,255,255,0.03)',
+                  background: isSelected ? C.yellowBg : C.creamDeep,
                   border: '1px solid',
-                  borderColor: isSelected ? 'rgba(62,207,106,0.2)' : 'rgba(255,255,255,0.07)',
+                  borderColor: isSelected ? C.yellowBorder : C.creamDeep,
                   borderRadius: '12px',
                   padding: '16px 18px',
                   marginBottom: '12px',
@@ -551,7 +574,7 @@ export default function SocialComplaintsPage() {
                   e.currentTarget.style.transform = 'translateY(-2px)';
                 }}
                 onMouseOut={(e) => {
-                  if(!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                  if(!isSelected) e.currentTarget.style.background = C.creamDeep;
                   e.currentTarget.style.transform = 'none';
                 }}
               >
@@ -559,17 +582,17 @@ export default function SocialComplaintsPage() {
                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: sevStyle.background, boxShadow: sevStyle.boxShadow }} />
                 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', color: '#475569', textTransform: 'uppercase' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '11px', color: C.textFaint, textTransform: 'uppercase' }}>
                     <Smartphone style={{ width: '12px', height: '12px' }} /> {c.platform}
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '10px', color: '#475569' }}>{timeAgo(c.scrapedAt)}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 400, fontSize: '10px', color: C.textFaint }}>{timeAgo(c.scrapedAt)}</div>
                 </div>
 
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9', lineHeight: 1.4, marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: C.textMain, lineHeight: 1.4, marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {c.content}
                 </div>
 
-                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '12px', color: '#475569', marginBottom: '12px' }}>
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '12px', color: C.textFaint, marginBottom: '12px' }}>
                   @{c.author} • {c.keyword}
                 </div>
 
@@ -584,42 +607,42 @@ export default function SocialComplaintsPage() {
           })}
           
           {!loading && !error && totalPages > 1 && (
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}` }}>
                 <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="btn-ghost-db" style={{ padding: '6px 12px', fontSize: '12px' }}>Prev</button>
-                <span style={{ fontSize: '12px', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>Pg {page} / {totalPages}</span>
+                <span style={{ fontSize: '12px', color: C.textMid, fontFamily: "'JetBrains Mono', monospace" }}>Pg {page} / {totalPages}</span>
                 <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)} className="btn-ghost-db" style={{ padding: '6px 12px', fontSize: '12px' }}>Next</button>
              </div>
           )}
         </div>
 
         {/* Selected Complaint Detail Panel */}
-        <div style={{ background: '#0D1117', overflowY: 'auto' }} className="scrollbar-thin">
+        <div style={{ background: C.cream, overflowY: 'auto' }} className="scrollbar-thin">
           {!selected ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '40px', textAlign: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', marginBottom: '16px' }}>
-                <AlertTriangle style={{ width: '28px', height: '28px', color: '#475569' }} />
+              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: C.white, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', marginBottom: '16px' }}>
+                <AlertTriangle style={{ width: '28px', height: '28px', color: C.textFaint }} />
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '16px', color: '#94A3B8' }}>Select a Complaint</div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: '#475569', marginTop: '6px', maxWidth: '240px' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '16px', color: C.textMid }}>Select a Complaint</div>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: C.textFaint, marginTop: '6px', maxWidth: '240px' }}>
                 Select a social complaint from the list to view full details and take action.
               </div>
             </div>
           ) : (
             <div style={{ padding: '24px' }}>
                {detailsLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94A3B8' }}><Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }}/> Loading details...</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: C.textMid }}><Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }}/> Loading details...</div>
                ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
                       <div>
-                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '20px', color: '#F1F5F9', marginBottom: '4px' }}>Complaint Details</h2>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: '#475569' }}>ID: {selected._id}</span>
+                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: '20px', color: C.textMain, marginBottom: '4px' }}>Complaint Details</h2>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: C.textFaint }}>ID: {selected._id}</span>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <select
                           value={selected.complaintStatus}
                           onChange={(e) => updateStatus(selected._id, e.target.value)}
-                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px', color: '#F1F5F9', fontSize: '12px', outline: 'none' }}
+                          style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '6px 10px', color: C.textMain, fontSize: '12px', outline: 'none' }}
                         >
                           <option value="new">New</option>
                           <option value="pending">Pending</option>
@@ -628,7 +651,7 @@ export default function SocialComplaintsPage() {
                           <option value="resolved">Resolved</option>
                           <option value="closed">Closed</option>
                         </select>
-                        <button onClick={() => deleteComplaint(selected._id)} style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)', padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Archive">
+                        <button onClick={() => deleteComplaint(selected._id)} style={{ background: C.amberBg, color: C.amber, border: `1px solid ${C.amberBg}`, padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Archive">
                            <Trash2 style={{ width: '14px', height: '14px' }} />
                         </button>
                       </div>
@@ -637,29 +660,29 @@ export default function SocialComplaintsPage() {
                     <div className="glass-card-db" style={{ padding: '20px', marginBottom: '16px' }}>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                           <div>
-                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Platform</div>
-                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9', textTransform: 'capitalize' }}>{selected.platform}</div>
+                             <div className="section-eyebrow" style={{ color: C.textFaint, marginBottom: '4px' }}>Platform</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: C.textMain, textTransform: 'capitalize' }}>{selected.platform}</div>
                           </div>
                           <div>
-                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Author</div>
-                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: '#F1F5F9' }}>@{selected.author}</div>
+                             <div className="section-eyebrow" style={{ color: C.textFaint, marginBottom: '4px' }}>Author</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: C.textMain }}>@{selected.author}</div>
                           </div>
                           <div>
-                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Sentiment</div>
-                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: selected.sentiment === 'negative' ? '#EF4444' : selected.sentiment === 'positive' ? '#3ECF6A' : '#F59E0B', textTransform: 'capitalize' }}>{selected.sentiment}</div>
+                             <div className="section-eyebrow" style={{ color: C.textFaint, marginBottom: '4px' }}>Sentiment</div>
+                             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 500, fontSize: '14px', color: selected.sentiment === 'negative' ? C.amber : selected.sentiment === 'positive' ? C.yellowDark : C.textMid, textTransform: 'capitalize' }}>{selected.sentiment}</div>
                           </div>
                           <div>
-                             <div className="section-eyebrow" style={{ color: '#475569', marginBottom: '4px' }}>Priority</div>
+                             <div className="section-eyebrow" style={{ color: C.textFaint, marginBottom: '4px' }}>Priority</div>
                              <span style={{ fontSize: '11px', fontWeight: 600, color: getSeverityStyle(selected.priority).labelText }}>{selected.priority.toUpperCase()}</span>
                           </div>
                        </div>
                        
-                       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '16px' }}>
-                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: '#94A3B8', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                       <div style={{ background: C.creamDeep, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px' }}>
+                          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, fontSize: '13px', color: C.textMid, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                             {selected.content}
                           </div>
                           {selected.postUrl && (
-                             <a href={selected.postUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12px', color: '#3ECF6A', fontWeight: 500 }}>
+                             <a href={selected.postUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12px', color: C.yellowDark, fontWeight: 500 }}>
                                 View Original <TrendingUp style={{ width: '12px', height: '12px' }} />
                              </a>
                           )}
@@ -668,28 +691,28 @@ export default function SocialComplaintsPage() {
 
                     <div className="glass-card-db" style={{ padding: '20px', marginBottom: '16px' }}>
                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: '#F1F5F9' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: C.textMain }}>
                              <UserPlus style={{ width: '14px', height: '14px', color: '#60A5FA' }} /> Assignment
                           </div>
                        </div>
-                       <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '12px' }}>
+                       <div style={{ background: C.creamDeep, padding: '12px', borderRadius: '8px', border: `1px solid ${C.border}`, marginBottom: '12px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span className="section-eyebrow" style={{ color: '#475569' }}>Employee</span>
+                            <span className="section-eyebrow" style={{ color: C.textFaint }}>Employee</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                               <span onClick={() => assignToMe(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#3ECF6A' }}>Self-Assign</span>
-                               <span onClick={() => assignEmployee(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#60A5FA' }}>Change</span>
+                               <span onClick={() => assignToMe(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: C.yellowDark }}>Self-Assign</span>
+                               <span onClick={() => assignEmployee(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: C.blue }}>Change</span>
                             </div>
                           </div>
-                          <div style={{ fontSize: '13px', color: selected.assignedTo ? '#F1F5F9' : '#475569' }}>
+                          <div style={{ fontSize: '13px', color: selected.assignedTo ? C.textMain : C.textFaint }}>
                             {selected.assignedTo ? (selected.assignedTo.name || selected.assignedTo.email) : 'Unassigned'}
                           </div>
                        </div>
-                       <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                       <div style={{ background: C.creamDeep, padding: '12px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span className="section-eyebrow" style={{ color: '#475569' }}>Customer</span>
-                            <span onClick={() => linkCustomer(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: '#60A5FA' }}>Change</span>
+                            <span className="section-eyebrow" style={{ color: C.textFaint }}>Customer</span>
+                            <span onClick={() => linkCustomer(selected._id)} style={{ cursor: 'pointer', fontSize: '10px', color: C.blue }}>Change</span>
                           </div>
-                          <div style={{ fontSize: '13px', color: selected.customerId ? '#F1F5F9' : '#475569' }}>
+                          <div style={{ fontSize: '13px', color: selected.customerId ? C.textMain : C.textFaint }}>
                             {selected.customerId ? (selected.customerId.name || selected.customerId.email) : 'Not Linked'}
                           </div>
                        </div>
@@ -697,37 +720,37 @@ export default function SocialComplaintsPage() {
 
                     <div className="glass-card-db" style={{ padding: '20px' }}>
                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: '#F1F5F9' }}>
-                             <Edit3 style={{ width: '14px', height: '14px', color: '#F59E0B' }} /> Notes & Resolution
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '13px', color: C.textMain }}>
+                             <Edit3 style={{ width: '14px', height: '14px', color: C.amber }} /> Notes & Resolution
                           </div>
                           <button onClick={() => addNote(selected._id)} className="btn-ghost-db" style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', minWidth: 0 }}>Add Note</button>
                        </div>
                        
                        {(selected.complaintStatus !== 'resolved' && selected.complaintStatus !== 'closed') && (
-                          <button onClick={() => setResolved(selected._id)} style={{ width: '100%', background: 'rgba(62,207,106,0.1)', border: '1px solid rgba(62,207,106,0.25)', color: '#3ECF6A', borderRadius: '8px', padding: '10px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', marginBottom: '16px' }}>
+                          <button onClick={() => setResolved(selected._id)} style={{ width: '100%', background: C.yellowBg, border: `1px solid ${C.yellowBorder}`, color: C.yellowDark, borderRadius: '8px', padding: '10px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', marginBottom: '16px' }}>
                             <CheckCircle style={{ width: '14px', height: '14px' }} /> MARK AS RESOLVED
                           </button>
                        )}
 
                        {selected.resolvedBy && (
-                          <div style={{ background: 'rgba(62,207,106,0.05)', border: '1px solid rgba(62,207,106,0.2)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                             <div style={{ fontSize: '11px', color: '#3ECF6A', fontWeight: 600, marginBottom: '4px' }}>Resolved By: {selected.resolvedBy.name || selected.resolvedBy.email}</div>
-                             {selected.resolutionNote && <div style={{ fontSize: '12px', color: '#94A3B8' }}>Note: {selected.resolutionNote}</div>}
+                          <div style={{ background: C.yellowBg, border: `1px solid ${C.yellowBorder}`, padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                             <div style={{ fontSize: '11px', color: C.yellowDark, fontWeight: 600, marginBottom: '4px' }}>Resolved By: {selected.resolvedBy.name || selected.resolvedBy.email}</div>
+                             {selected.resolutionNote && <div style={{ fontSize: '12px', color: C.textMid }}>Note: {selected.resolutionNote}</div>}
                           </div>
                        )}
 
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {selected.internalNotes && selected.internalNotes.map((note, idx) => (
-                             <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                <div style={{ fontSize: '12px', color: '#F1F5F9', marginBottom: '4px' }}>{note.note}</div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569' }}>
+                             <div key={idx} style={{ background: C.creamDeep, padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+                                <div style={{ fontSize: '12px', color: C.textMain, marginBottom: '4px' }}>{note.note}</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: C.textFaint }}>
                                    <span>{note.addedBy ? (note.addedBy.name || note.addedBy.email) : 'System'}</span>
                                    <span>{new Date(note.addedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
                                 </div>
                              </div>
                           ))}
                           {(!selected.internalNotes || selected.internalNotes.length === 0) && (
-                             <div style={{ fontSize: '12px', color: '#475569', textAlign: 'center', padding: '10px 0' }}>No internal notes.</div>
+                             <div style={{ fontSize: '12px', color: C.textFaint, textAlign: 'center', padding: '10px 0' }}>No internal notes.</div>
                           )}
                        </div>
                     </div>
@@ -743,15 +766,15 @@ export default function SocialComplaintsPage() {
       <AnimatePresence>
         {actionModal.show && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(10,11,13,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} style={{ background: '#111318', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
                
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '16px', color: '#F1F5F9' }}>{actionModal.title}</h3>
-                  <X style={{ width: '16px', height: '16px', color: '#475569', cursor: 'pointer' }} onClick={closeModal} />
+                  <h3 style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: '16px', color: C.textMain }}>{actionModal.title}</h3>
+                  <X style={{ width: '16px', height: '16px', color: C.textFaint, cursor: 'pointer' }} onClick={closeModal} />
                </div>
 
                {actionModal.message && (
-                  <p style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px' }}>{actionModal.message}</p>
+                  <p style={{ fontSize: '13px', color: C.textMid, marginBottom: '16px', background: C.creamDeep, padding: '12px', borderRadius: '8px' }}>{actionModal.message}</p>
                )}
 
                {actionModal.type !== "delete" && actionModal.type !== "error" && (

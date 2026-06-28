@@ -187,15 +187,29 @@ const sendReply = async (to, subject, body, threadId) => {
     .replace(/\//g, '_')
     .replace(/=+$/, '');
 
-  const result = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: {
-      raw: encodedMessage,
-      threadId,
-    },
-  });
-
-  return result.data;
+  // Try to send with threadId first, fallback to without threadId if it fails
+  try {
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage,
+        threadId,
+      },
+    });
+    return result.data;
+  } catch (error) {
+    if (error.message && error.message.includes('thread_id')) {
+      console.log('Invalid threadId, sending as new message');
+      const result = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage,
+        },
+      });
+      return result.data;
+    }
+    throw error;
+  }
 };
 
 module.exports = {

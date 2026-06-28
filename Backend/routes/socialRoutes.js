@@ -15,21 +15,27 @@ const {
   deleteComplaint,
 } = require('../controllers/socialController');
 
-// scrape
-router.post('/scrape', scrapeAndSave);
+const { authenticate, authorize } = require('../middleware/auth');
+const { scrapeLimiter } = require('../middleware/rateLimiter');
+const { validateObjectId, validateScrape } = require('../middleware/validate');
 
-// complaints
-router.get('/complaints', getComplaints);
-router.get('/complaints/:id', getComplaintById);
-router.patch('/complaints/:id/assign', assignComplaint);
-router.patch('/complaints/:id/status', updateComplaintStatus);
-router.patch('/complaints/:id/resolve', resolveComplaint);
-router.patch('/complaints/:id/link-customer', linkCustomerToComplaint);
-router.patch('/complaints/:id/note', addInternalNote);
-router.delete('/complaints/:id', deleteComplaint);
+// ── All social routes require employer authentication ─────────────────────────
 
-// dashboard
-router.get('/stats', getStats);
-router.get('/stats/agents', getAgentStats);
+// Scrape — rate limited heavily (Puppeteer is resource-intensive)
+router.post('/scrape', authenticate, authorize('employer'), scrapeLimiter, validateScrape, scrapeAndSave);
+
+// Complaints
+router.get('/complaints', authenticate, authorize('employer'), getComplaints);
+router.get('/complaints/:id', authenticate, authorize('employer'), validateObjectId(), getComplaintById);
+router.patch('/complaints/:id/assign', authenticate, authorize('employer'), validateObjectId(), assignComplaint);
+router.patch('/complaints/:id/status', authenticate, authorize('employer'), validateObjectId(), updateComplaintStatus);
+router.patch('/complaints/:id/resolve', authenticate, authorize('employer'), validateObjectId(), resolveComplaint);
+router.patch('/complaints/:id/link-customer', authenticate, authorize('employer'), validateObjectId(), linkCustomerToComplaint);
+router.patch('/complaints/:id/note', authenticate, authorize('employer'), validateObjectId(), addInternalNote);
+router.delete('/complaints/:id', authenticate, authorize('employer'), validateObjectId(), deleteComplaint);
+
+// Dashboard stats
+router.get('/stats', authenticate, authorize('employer'), getStats);
+router.get('/stats/agents', authenticate, authorize('employer'), getAgentStats);
 
 module.exports = router;

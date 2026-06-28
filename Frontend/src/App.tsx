@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { RequireAuth, RedirectIfAuth } from "@/components/guards/RouteGuards";
 
 import Index from "@/pages/Index";
@@ -22,6 +23,8 @@ import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import CampaignsPage from "@/pages/dashboard/CampaignsPage";
 import ReportsPage from "@/pages/dashboard/ReportsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
+import TicketIntelligencePage from "@/pages/dashboard/TicketIntelligencePage";
+import CompliancePage from "@/pages/dashboard/CompliancePage";
 
 const queryClient = new QueryClient();
 
@@ -29,43 +32,47 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public */}
-              <Route path="/" element={<Index />} />
-              <Route path="/unauthorized" element={<Unauthorized />} />
+        <NotificationProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                {/* Public */}
+                <Route path="/" element={<Index />} />
+                <Route path="/unauthorized" element={<Unauthorized />} />
 
-              {/* Redirect logged-in users away from /login */}
-              <Route element={<RedirectIfAuth />}>
-                <Route path="/login" element={<LoginPage />} />
-              </Route>
-
-              {/* Employer-only: /dashboard */}
-              <Route element={<RequireAuth allowedRoles={["employer"]} />}>
-                <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<InboxPage />} />
-                  <Route path="customers" element={<CustomersPage />} />
-                  <Route path="complaints" element={<SocialComplaintsPage />} />
-                  <Route path="my-tasks" element={<MyTasksPage />} />
-                  <Route path="analytics" element={<AnalyticsPage />} />
-                  <Route path="campaigns" element={<CampaignsPage />} />
-                  <Route path="reports" element={<ReportsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
+                {/* Redirect logged-in users away from /login */}
+                <Route element={<RedirectIfAuth />}>
+                  <Route path="/login" element={<LoginPage />} />
                 </Route>
-              </Route>
 
-              {/* Customer-only: /portal */}
-              <Route element={<RequireAuth allowedRoles={["customer"]} />}>
-                <Route path="/portal" element={<CustomerPortal />} />
-              </Route>
+                {/* Employer-only: /dashboard */}
+                <Route element={<RequireAuth allowedRoles={["employer"]} />}>
+                  <Route path="/dashboard" element={<DashboardLayout />}>
+                    <Route index element={<InboxPage />} />
+                    <Route path="customers" element={<CustomersPage />} />
+                    <Route path="complaints" element={<SocialComplaintsPage />} />
+                    <Route path="my-tasks" element={<MyTasksPage />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
+                    <Route path="campaigns" element={<CampaignsPage />} />
+                    <Route path="compliance" element={<CompliancePage />} />
+                    <Route path="reports" element={<ReportsPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                    <Route path="ticket-intelligence" element={<TicketIntelligencePage />} />
+                  </Route>
+                </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+                {/* Customer-only: /portal */}
+                <Route element={<RequireAuth allowedRoles={["customer"]} />}>
+                  <Route path="/portal" element={<CustomerPortal />} />
+                </Route>
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </NotificationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -273,6 +273,65 @@ const loginEmployer = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────
+// PATCH /api/employers/:id/password — Change password
+// ──────────────────────────────────────────────
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters',
+      });
+    }
+
+    // Get employer with password field
+    const employer = await Employer.findOne({
+      _id: req.params.id,
+      isActive: true,
+    }).select('+password');
+
+    if (!employer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employer not found',
+      });
+    }
+
+    // Verify current password
+    const isMatch = await employer.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    employer.password = newPassword;
+    await employer.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   createEmployer,
   getAllEmployers,
@@ -280,4 +339,5 @@ module.exports = {
   updateEmployer,
   deleteEmployer,
   loginEmployer,
+  changePassword,
 };

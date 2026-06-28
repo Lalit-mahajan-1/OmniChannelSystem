@@ -4,11 +4,18 @@ const Customer = require('../models/Customer');
 const Employer = require('../models/Employer');
 const { fetchUnreadEmails, markAsRead, sendReply } = require('./gmailService');
 const { generateAIReply } = require('./aiAgentService');
+const { analyzeTicket } = require('./ticketIntelligenceService');
 
 let isProcessing = false;
 let pollerStartedAt = Math.floor(Date.now() / 1000); // store current time in seconds
 
 const startGmailPoller = () => {
+  // Only start the poller if Gmail credentials are configured
+  if (!process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_REFRESH_TOKEN) {
+    console.log('Gmail poller disabled (missing GMAIL_CLIENT_ID or GMAIL_REFRESH_TOKEN in .env)');
+    return;
+  }
+
   console.log('Gmail poller started — checking every 30 seconds');
 
   cron.schedule('*/30 * * * * *', async () => {
@@ -102,6 +109,16 @@ const processNewEmails = async () => {
 
       console.log(`Saved new email from ${email.fromEmail}`);
 
+      analyzeTicket({
+        message: email.body || email.rawBody || email.subject || 'Incoming email',
+        channel: 'email',
+        customerId: customer._id,
+        ticketId: email.gmailId,
+        sourceId: email.threadId || email.gmailId,
+      }).catch((err) => {
+        console.error('[Ticket Intelligence] Email analysis failed:', err.message);
+      });
+
       // ── AUTO-REPLY: check customer flag ──────────────────────────────
       if (customer.autoReplyEmail) {
         try {
@@ -161,4 +178,4 @@ const processNewEmails = async () => {
   }
 };
 
-module.exports = { startGmailPoller, processNewEmails };
+module.exports = { startGmailPoller, processNewEmails };

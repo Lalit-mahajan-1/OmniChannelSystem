@@ -1,4 +1,25 @@
 node_modules/
 .env
+.env.local
+.env.production
+".env file"
 package-lock.json
+.claude/worktrees/
 .DS_Store
+Thumbs.db
+
+# Docker
+mongo_data/
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
+coverage/
+
+# OS
+*.log
+*.swp

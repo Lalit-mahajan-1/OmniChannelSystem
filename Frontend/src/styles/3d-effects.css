@@ -6,8 +6,8 @@
 .perspective-section.is-visible > .section-inner { transform: rotateX(0deg) translateY(0px); opacity: 1; }
 
 /* HERO SPHERE */
-.hero-sphere-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%); width: 600px; height: 600px; z-index: 0; pointer-events: none; }
-@media (max-width: 768px) { .hero-sphere-container { width: 340px; height: 340px; } }
+.hero-sphere-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%); width: 400px; height: 400px; z-index: 0; pointer-events: none; }
+@media (max-width: 768px) { .hero-sphere-container { width: 260px; height: 260px; } }
 .hero-sphere { width: 100%; height: 100%; border-radius: 50%; position: relative; animation: sphere-breathe 6s ease-in-out infinite; }
 .hero-sphere-core { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.85) 0%, rgba(212,250,230,0.6) 30%, rgba(168,245,194,0.35) 55%, rgba(195,238,248,0.2) 75%, transparent 100%); box-shadow: 0 0 80px 20px rgba(62,207,106,0.12), 0 0 160px 40px rgba(62,207,106,0.07), inset 0 0 60px rgba(255,255,255,0.4); backdrop-filter: blur(2px); border: 1px solid rgba(255,255,255,0.6); }
 .hero-sphere-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(62,207,106,0.2); animation: sphere-ring-rotate 12s linear infinite; }

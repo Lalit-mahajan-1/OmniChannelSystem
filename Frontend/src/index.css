@@ -1,62 +1,64 @@
+/* All @import statements must come BEFORE Tailwind directives */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+@import url('./styles/dashboard.css');
+@import url('./styles/dashboard-animations.css');
+@import url('./styles/light-theme.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
-
-/* Dashboard Dark Soft Glass Redesign */
-@import url('./styles/dashboard.css');
-@import url('./styles/dashboard-animations.css');
-
 @layer base {
   :root {
-    --background: 230 84% 4%;
-    --foreground: 210 40% 96%;
+    /* Light Theme Colors */
+    --background: 0 0% 98%;
+    --foreground: 222 47% 11%;
 
-    --card: 230 40% 8%;
-    --card-foreground: 210 40% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 230 40% 8%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 187 92% 53%;
-    --primary-foreground: 230 84% 4%;
+    --primary: 45 100% 51%;
+    --primary-foreground: 0 0% 10%;
 
-    --secondary: 270 95% 65%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 230 30% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 330 86% 70%;
-    --accent-foreground: 230 84% 4%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 230 30% 18%;
-    --input: 230 30% 14%;
-    --ring: 187 92% 53%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 45 100% 51%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 230 40% 6%;
-    --sidebar-foreground: 210 40% 80%;
-    --sidebar-primary: 187 92% 53%;
-    --sidebar-primary-foreground: 230 84% 4%;
-    --sidebar-accent: 230 30% 12%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 230 30% 15%;
-    --sidebar-ring: 187 92% 53%;
+    /* Light Theme Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 45 100% 51%;
+    --sidebar-primary-foreground: 0 0% 10%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 45 100% 51%;
 
-    /* Custom tokens */
-    --neon-cyan: 187 92% 53%;
-    --neon-purple: 270 95% 65%;
+    /* Light Theme Tokens */
+    --neon-cyan: 45 100% 51%;
+    --neon-purple: 259 86% 62%;
     --neon-pink: 330 86% 70%;
     --neon-yellow: 48 97% 53%;
-    --glass-bg: 230 40% 8%;
-    --glass-border: 230 30% 20%;
+    --glass-bg: 0 0% 100%;
+    --glass-border: 214 32% 91%;
     
     /* ConvoSphere Soft Editorial Design System Tokens */
     --color-canvas-bg: #EDEEF0;
@@ -65,13 +67,13 @@
     --color-text-primary: #0D0D0D;
     --color-text-secondary: #555860;
     --color-text-muted: #9EA3AE;
-    --color-accent-green: #3ECF6A;
-    --color-accent-green-light: #B8F5CC;
-    --color-accent-mint: #D4FAE6;
-    --color-accent-gradient-start: #A8F5C2;
-    --color-accent-gradient-end: #C3EEF8;
-    --color-highlight-pill-bg: #D6F7E5;
-    --color-highlight-pill-text: #1A7A40;
+    --color-accent-green: #FFC107;
+    --color-accent-green-light: #FFF3CD;
+    --color-accent-mint: #FFF8E7;
+    --color-accent-gradient-start: #FFE082;
+    --color-accent-gradient-end: #FFF3CD;
+    --color-highlight-pill-bg: #FFF3CD;
+    --color-highlight-pill-text: #B8860B;
     --color-border-subtle: #E4E6EB;
     
     /* Reveal configuration */

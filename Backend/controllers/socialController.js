@@ -3,8 +3,10 @@ const SocialComplaint = require('../models/SocialComplaint');
 const Employer = require('../models/Employer');
 const Customer = require('../models/Customer');
 const { scrapeByPlatform } = require('../services/socialScraperService');
+const { analyzeTicket } = require('../services/ticketIntelligenceService');
+const { autoCreateTask } = require('./taskController');
 
-const ALLOWED_PLATFORMS = ['twitter', 'reddit', 'youtube'];
+const ALLOWED_PLATFORMS = ['whatsapp', 'email', 'twitter', 'reddit', 'youtube'];
 const ALLOWED_STATUSES = ['new', 'pending', 'assigned', 'in_progress', 'resolved', 'closed'];
 const ALLOWED_SENTIMENTS = ['positive', 'negative', 'neutral'];
 const ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'critical'];
@@ -49,8 +51,30 @@ const scrapeAndSave = async (req, res) => {
 
     for (const item of allResults) {
       try {
-        await SocialComplaint.create(item);
+        const savedComplaint = await SocialComplaint.create(item);
         savedCount++;
+
+        analyzeTicket({
+          message: savedComplaint.content,
+          channel: savedComplaint.platform || 'social',
+          customerId: savedComplaint.customerId || null,
+          ticketId: savedComplaint.postId,
+          sourceId: savedComplaint.postUrl || savedComplaint.postId,
+        }).catch((err) => {
+          console.error('[Ticket Intelligence] Social analysis failed:', err.message);
+        });
+
+        if (savedComplaint.sentiment === 'negative' || savedComplaint.priority === 'high' || savedComplaint.priority === 'critical') {
+          autoCreateTask({
+            title: `Review complaint: ${(savedComplaint.content || '').slice(0, 60)}...`,
+            description: `Social complaint from ${savedComplaint.platform}: ${savedComplaint.content}`,
+            customerId: savedComplaint.customerId,
+            priority: savedComplaint.priority || 'high',
+            channel: savedComplaint.platform,
+            category: 'complaint',
+            createdBy: req.userId,
+          }).catch(() => {});
+        }
       } catch (err) {
         if (err.code === 11000) {
           duplicateCount++;

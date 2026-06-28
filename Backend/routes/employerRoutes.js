@@ -7,13 +7,27 @@ const {
   updateEmployer,
   deleteEmployer,
   loginEmployer,
+  changePassword,
 } = require('../controllers/employerController');
 
-// Public routes
-router.post('/login', loginEmployer);
+const { authenticate, authorize } = require('../middleware/auth');
+const { authLimiter } = require('../middleware/rateLimiter');
+const { validateLogin, validateRegistration, validateObjectId } = require('../middleware/validate');
 
-// CRUD routes
-router.route('/').post(createEmployer).get(getAllEmployers);
-router.route('/:id').get(getEmployerById).put(updateEmployer).delete(deleteEmployer);
+// ── Public Routes ─────────────────────────────────────────────────────────────
+router.post('/login', authLimiter, validateLogin, loginEmployer);
+router.post('/register', authLimiter, validateRegistration, createEmployer);
+
+// ── Protected Routes (Employer only) ──────────────────────────────────────────
+router.get('/', authenticate, authorize('employer'), getAllEmployers);
+
+router.route('/:id')
+  .get(authenticate, authorize('employer'), validateObjectId(), getEmployerById)
+  .put(authenticate, authorize('employer'), validateObjectId(), updateEmployer)
+  .patch(authenticate, authorize('employer'), validateObjectId(), updateEmployer)
+  .delete(authenticate, authorize('employer'), validateObjectId(), deleteEmployer);
+
+// Password change route
+router.patch('/:id/password', authenticate, authorize('employer'), validateObjectId(), changePassword);
 
 module.exports = router;

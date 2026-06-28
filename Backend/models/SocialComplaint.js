@@ -4,7 +4,7 @@ const SocialComplaintSchema = new mongoose.Schema(
   {
     platform: {
       type: String,
-      enum: ['twitter', 'reddit', 'youtube', 'google_reviews', 'other'],
+      enum: ['whatsapp', 'email', 'twitter', 'reddit', 'youtube', 'google_reviews', 'other'],
       required: true,
       index: true,
     },

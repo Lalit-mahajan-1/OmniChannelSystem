@@ -1,1590 +1,460 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import type { TicketAnalytics, AtRiskCustomer, AgentAnalyticsStats } from "@/lib/api";
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from "recharts";
-import {
-  ShieldAlert,
-  CheckCircle,
-  Bot,
-  User,
-  AlertTriangle,
-  Mail,
-  MessageCircle,
-  Globe,
-  RefreshCw,
-  Zap,
-  Target,
-  Users,
-  BarChart2,
   Activity,
-  ChevronRight,
-  ArrowUpRight,
-  Trophy,
-  Gauge,
-  Sparkles,
-  HeartPulse,
+  AlertTriangle,
   TrendingUp,
-  TrendingDown,
-  Clock,
+  Users,
+  Brain,
+  Flame,
+  CheckCircle,
+  Target,
+  RefreshCw,
+  HeartPulse,
 } from "lucide-react";
 
-// ── Config ────────────────────────────────────────────────────────────────────
-const ANALYTICS_BASE = "http://localhost:5005";
-const SENTIMENT_BASE = "http://localhost:5006";
-
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Metrics {
-  summary: {
-    totalCustomers: number;
-    activeChats: number;
-    unrepliedEmails: number;
-    unreadWhatsApp: number;
-    atRiskCustomers: number;
-    totalComplaints: number;
-    unresolvedComplaints: number;
-    criticalComplaints: number;
-    totalEmails?: number;
-  };
-  rates: {
-    emailResolutionRate: number;
-    aiReplyRate: number;
-    negativeRatio: number;
-  };
-  channels: {
-    email: number;
-    whatsapp: number;
-    twitter: number;
-    reddit: number;
-    youtube: number;
-    linkedin: number;
-  };
-  sentiment: { positive: number; neutral: number; negative: number };
-  recentActivity: { emailsLast24h: number; whatsappLast24h: number };
-  atRiskIds: string[];
-  alerts: string[];
-}
 
-interface Recommendation {
-  priority: "high" | "medium" | "low";
-  category: string;
-  title: string;
-  description: string;
-  action: string;
-  impact: string;
-}
-
-interface ChannelBreakdown {
-  email: {
-    total: number;
-    replied: number;
-    unreplied: number;
-    aiReplied: number;
-    resolutionRate: number;
-  };
-  whatsapp: {
-    total: number;
-    unread: number;
-    active: number;
-  };
-  social: {
-    total: number;
-    complaints: number;
-    resolved: number;
-    critical: number;
-    byPlatform: Record<string, number>;
-  };
-}
-
-interface SentimentTrend {
-  trend: Array<{
-    date: string;
-    positive: number;
-    neutral: number;
-    negative: number;
-    total: number;
-  }>;
-  overall: { positive: number; neutral: number; negative: number };
-}
-
-interface AlertItem {
-  type: string;
-  severity: "critical" | "high" | "medium";
-  title: string;
-  action: string;
-  link: string;
-}
-
-interface AgentStat {
-  agentType: "gmail" | "whatsapp";
-  totalEvents: number;
-  successCount: number;
-  failedCount: number;
-  skippedCount: number;
-  autoReplyCount: number;
-  suggestionCount: number;
-  manualSendCount: number;
-  successRate: number;
-  avgGenerationLatencyMs: number;
-  avgSendLatencyMs: number;
-  avgTotalLatencyMs: number;
-}
-
-interface AgentPerformance {
-  agents: AgentStat[];
-  winner: {
-    bySuccessRate: "gmail" | "whatsapp" | null;
-    bySpeed: "gmail" | "whatsapp" | null;
-  };
-}
-
-interface AgentLog {
+interface Customer {
   _id: string;
-  agentType: "gmail" | "whatsapp";
-  actionType: string;
-  status: "success" | "failed" | "skipped";
-  channel: "email" | "whatsapp";
-  customerId?: string;
-  emailId?: string;
-  chatId?: string;
-  inboundMessage?: string;
-  aiReply?: string;
-  model?: string;
-  generationLatencyMs?: number;
-  sendLatencyMs?: number;
-  totalLatencyMs?: number;
-  createdAt: string;
-  errorMessage?: string;
-}
-
-interface RecommendationsResponse {
-  recommendations: Recommendation[];
-  alerts: string[];
-  metrics: any;
-  performance?: AgentPerformance;
-}
-
-interface ResolutionStats {
-  total: number;
-  resolved: number;
-  pending: number;
-  unresolved: number;
-  aiHandled: number;
-  resolutionRate: number;
-  aiRate: number;
-}
-
-interface SentimentCustomer {
-  customerId: string;
   name: string;
-  sentiment: "positive" | "neutral" | "negative" | "angry";
-  sentimentScore: number;
-  resolutionStatus: "resolved" | "pending" | "unresolved";
-  unrepliedEmails: number;
-  totalEmails: number;
-  hasWhatsApp: boolean;
-  unreadWhatsApp: number;
-  isAtRisk: boolean;
+  email: string;
+  phone?: string;
+  healthScore: number;
+  healthStatus: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
-interface SentimentFullReport {
-  generatedAt: string;
-  overview: {
-    totalCustomers: number;
-    resolutionRate: number;
-    resolved: number;
-    pending: number;
-    unresolved: number;
-    atRisk: number;
-    sentimentBreakdown: {
-      positive: number;
-      neutral: number;
-      negative: number;
-      angry: number;
-    };
-  };
-  aiSummary: {
-    executiveSummary: string;
-    healthScore?: number;
-    topConcern?: string;
-    quickWin?: string;
-    weeklyTrend?: string;
-  };
-  customers: SentimentCustomer[];
+interface CustomerResponse {
+  success: boolean;
+  count: number;
+  total: number;
+  data: Customer[];
 }
 
-interface ParsedAiSummary {
-  executiveSummary: string;
-  healthScore: number | null;
-  topConcern: string;
-  quickWin: string;
-  weeklyTrend: string;
-}
+// ── Palette ───────────────────────────────────────────────────────────────────
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const S = {
-  page: {
-    width: "100%",
-    minHeight: "100%",
-    background:
-      "radial-gradient(ellipse at 0% 0%, rgba(62,207,106,0.06) 0%, transparent 40%), radial-gradient(ellipse at 100% 0%, rgba(96,165,250,0.07) 0%, transparent 40%), #020617",
-    display: "flex",
-    flexDirection: "column" as const,
-  },
-  header: {
-    padding: "26px 32px 18px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    flexWrap: "wrap" as const,
-    gap: "16px",
-    background: "rgba(2,6,23,0.82)",
-    backdropFilter: "blur(14px)",
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 10,
-  },
-  eyebrow: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: "10px",
-    letterSpacing: "0.14em",
-    textTransform: "uppercase" as const,
-    color: "#3ECF6A",
-    marginBottom: "4px",
-  },
-  title: {
-    margin: 0,
-    fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: "28px",
-    fontWeight: 700,
-    color: "#F8FAFC",
-    letterSpacing: "-0.02em",
-  },
-  toolbar: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" as const },
-  refreshBtn: {
-    height: "38px",
-    width: "38px",
-    border: "1px solid rgba(148,163,184,0.16)",
-    borderRadius: "10px",
-    background: "rgba(15,23,42,0.92)",
-    color: "#94A3B8",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-  },
-  body: { padding: "22px 32px 36px", display: "flex", flexDirection: "column" as const, gap: "18px" },
-  card: {
-    background: "linear-gradient(160deg,rgba(15,23,42,0.90),rgba(2,6,23,0.95))",
-    border: "1px solid rgba(148,163,184,0.10)",
-    borderRadius: "20px",
-    backdropFilter: "blur(10px)",
-    boxShadow: "0 16px 48px rgba(0,0,0,0.30)",
-  },
-  p: { padding: "20px" },
-  sTitle: {
-    margin: "0 0 4px",
-    fontFamily: "'Space Grotesk', sans-serif",
-    fontWeight: 700,
-    fontSize: "16px",
-    color: "#F8FAFC",
-    letterSpacing: "-0.01em",
-  },
-  sDesc: {
-    margin: "0 0 18px",
-    fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: "12px",
-    color: "#64748B",
-  },
-  label: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: "10px",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.12em",
-    color: "#64748B",
-  },
-  bigNum: {
-    margin: "8px 0 6px",
-    fontFamily: "'Space Grotesk', sans-serif",
-    fontWeight: 800,
-    fontSize: "36px",
-    lineHeight: 1,
-    color: "#F8FAFC",
-    letterSpacing: "-0.02em",
-  },
-  badge: (color: string) => ({
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "4px",
-    padding: "3px 8px",
-    borderRadius: "99px",
-    background: `${color}18`,
-    border: `1px solid ${color}30`,
-    color,
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: "11px",
-    fontWeight: 700,
-  }),
+const C = {
+  yellow:   "#FFC107",
+  yellowBg: "#FFF3CD",
+  yellowBorder: "#FFE082",
+  amber:    "#EF9F27",
+  cream:    "#FFF8E7",
+  border:   "#F0E4C8",
+  muted:    "#E8D9B5",
+  textMain: "#1A1A1A",
+  textMid:  "#8A8578",
+  textFaint:"#B0A99A",
+  white:    "#FFFFFF",
+  danger:   "#E24B4A",
+  dangerBg: "#FCEBEB",
+  dangerBorder: "#F7C1C1",
+  dangerText: "#A32D2D",
+  green:    "#B8860B",
+  greenBg:  "#FFF3CD",
 };
-
-const axisStyle = {
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 10,
-  fill: "#475569",
-  letterSpacing: "0.03em",
-};
-
-const grid = { stroke: "rgba(148,163,184,0.08)", strokeDasharray: "4 4" };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ ...S.card, ...style }}>{children}</div>;
+
+function DonutChart({
+  data,
+  centerLabel,
+  centerSub,
+}: {
+  data: { name: string; value: number; color: string }[];
+  centerLabel: string;
+  centerSub: string;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const circumference = 2 * Math.PI * 40;
+  let offset = 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "28px" }}>
+      <svg width="110" height="110" viewBox="0 0 110 110" style={{ flexShrink: 0 }}>
+        <circle cx="55" cy="55" r="40" fill="none" stroke={C.border} strokeWidth="16" />
+        {data.map((d) => {
+          const dash = (d.value / total) * circumference;
+          const el = (
+            <circle
+              key={d.name}
+              cx="55" cy="55" r="40"
+              fill="none"
+              stroke={d.color}
+              strokeWidth="16"
+              strokeDasharray={`${dash} ${circumference}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 55 55)"
+            />
+          );
+          offset += dash;
+          return el;
+        })}
+        <text x="55" y="51" textAnchor="middle" fontSize="15" fontWeight="500" fill={C.textMain}>{centerLabel}</text>
+        <text x="55" y="65" textAnchor="middle" fontSize="10" fill={C.textMid}>{centerSub}</text>
+      </svg>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "9px" }}>
+        {data.map((d) => (
+          <div key={d.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: C.textMid }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "2px", background: d.color, flexShrink: 0, display: "inline-block" }} />
+              {d.name}
+            </div>
+            <span style={{ fontSize: "12px", fontWeight: 500, color: C.textMain }}>
+              {Math.round((d.value / total) * 100)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function Tip({ active, payload, label, unit = "" }: any) {
-  if (!active || !payload?.length) return null;
+function HBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   return (
-    <div
-      style={{
-        background: "rgba(2,6,23,0.97)",
-        border: "1px solid rgba(148,163,184,0.14)",
-        borderRadius: "12px",
-        padding: "10px 14px",
-        fontFamily: "'Space Grotesk', sans-serif",
-        fontSize: "12px",
-        boxShadow: "0 12px 36px rgba(0,0,0,0.4)",
-      }}
-    >
-      <div style={{ color: "#94A3B8", marginBottom: "5px", fontWeight: 600 }}>{label}</div>
-      {payload.map((p: any, i: number) => (
-        <div
-          key={i}
-          style={{
-            color: p.color || "#3ECF6A",
-            fontWeight: 700,
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "14px",
-            marginTop: i === 0 ? 0 : 3,
-          }}
-        >
-          <span>{p.name}</span>
-          <span>{p.value}{unit}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <span style={{ fontSize: "12px", color: C.textMid, width: "76px", flexShrink: 0, textAlign: "right" }}>{label}</span>
+      <div style={{ flex: 1, height: "8px", background: C.border, borderRadius: "4px", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${(value / max) * 100}%`, background: color, borderRadius: "4px" }} />
+      </div>
+      <span style={{ fontSize: "12px", color: C.textMid, width: "32px", textAlign: "right", flexShrink: 0 }}>{value}</span>
+    </div>
+  );
+}
+
+function KpiCard({
+  icon, label, value, sub, iconBg, iconColor, trend,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  sub?: string;
+  iconBg: string;
+  iconColor: string;
+  trend?: { label: string; up: boolean };
+}) {
+  return (
+    <div style={{
+      background: C.white,
+      border: `0.5px solid ${C.border}`,
+      borderRadius: "12px",
+      padding: "18px 20px",
+    }}>
+      <div style={{
+        width: "36px", height: "36px", borderRadius: "8px",
+        background: iconBg, color: iconColor,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginBottom: "14px",
+      }}>
+        {icon}
+      </div>
+      <div style={{ fontSize: "10px", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textFaint, marginBottom: "4px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "28px", fontWeight: 500, color: C.textMain, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: "11px", color: C.textMid, marginTop: "5px" }}>{sub}</div>}
+      {trend && (
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 500, marginTop: "6px", color: trend.up ? C.green : C.dangerText }}>
+          <TrendingUp style={{ width: 12, height: 12, transform: trend.up ? "none" : "rotate(180deg)" }} />
+          {trend.label}
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
-function Spinner() {
+function ChartCard({ title, icon, children, style }: { title: string; icon: React.ReactNode; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "80px" }}>
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          border: "2px solid rgba(62,207,106,0.2)",
-          borderTopColor: "#3ECF6A",
-          borderRadius: "50%",
-          animation: "spin 0.7s linear infinite",
-        }}
-      />
+    <div style={{
+      background: C.white, border: `0.5px solid ${C.border}`,
+      borderRadius: "12px", padding: "22px", ...style,
+    }}>
+      <div style={{ fontSize: "13px", fontWeight: 500, color: C.textMain, marginBottom: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ color: C.yellow }}>{icon}</span>
+        {title}
+      </div>
+      {children}
     </div>
   );
 }
 
-function AlertBadge({ severity }: { severity: string }) {
-  const colors: Record<string, string> = {
-    critical: "#EF4444",
-    high: "#F59E0B",
-    medium: "#60A5FA",
-  };
-  const c = colors[severity] || "#94A3B8";
-  return <span style={S.badge(c)}>{severity.toUpperCase()}</span>;
-}
+// ── Main ──────────────────────────────────────────────────────────────────────
 
-function PriorityDot({ priority }: { priority: string }) {
-  const colors: Record<string, string> = {
-    high: "#EF4444",
-    medium: "#F59E0B",
-    low: "#3ECF6A",
-  };
-  return (
-    <span
-      style={{
-        width: 8,
-        height: 8,
-        borderRadius: "50%",
-        background: colors[priority] || "#94A3B8",
-        display: "inline-block",
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-function formatMs(ms?: number) {
-  if (!ms && ms !== 0) return "—";
-  if (ms < 1000) return `${ms} ms`;
-  return `${(ms / 1000).toFixed(2)} s`;
-}
-
-function formatAgentName(name?: string | null) {
-  if (!name) return "—";
-  if (name === "gmail") return "Gmail Agent";
-  if (name === "whatsapp") return "WhatsApp Agent";
-  return name;
-}
-
-function cleanExecutiveSummary(raw?: string): ParsedAiSummary {
-  if (!raw) {
-    return {
-      executiveSummary: "No AI summary available.",
-      healthScore: null,
-      topConcern: "—",
-      quickWin: "—",
-      weeklyTrend: "—",
-    };
-  }
-
-  const firstJsonIndex = raw.indexOf("{");
-  if (firstJsonIndex === -1) {
-    return {
-      executiveSummary: raw.trim(),
-      healthScore: null,
-      topConcern: "—",
-      quickWin: "—",
-      weeklyTrend: "—",
-    };
-  }
-
-  const plainText = raw.slice(0, firstJsonIndex).trim();
-  const jsonPart = raw.slice(firstJsonIndex).trim();
-
-  try {
-    const parsed = JSON.parse(jsonPart);
-    return {
-      executiveSummary: plainText || parsed.executiveSummary || "No executive summary available.",
-      healthScore: typeof parsed.healthScore === "number" ? parsed.healthScore : null,
-      topConcern: parsed.topConcern || "—",
-      quickWin: parsed.quickWin || "—",
-      weeklyTrend: parsed.weeklyTrend || "—",
-    };
-  } catch {
-    return {
-      executiveSummary: raw.trim(),
-      healthScore: null,
-      topConcern: "—",
-      quickWin: "—",
-      weeklyTrend: "—",
-    };
-  }
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [recs, setRecs] = useState<RecommendationsResponse | null>(null);
-  const [channels, setChannels] = useState<ChannelBreakdown | null>(null);
-  const [sentimentTrend, setSentimentTrend] = useState<SentimentTrend | null>(null);
-  const [alertsData, setAlertsData] = useState<AlertItem[]>([]);
-  const [agentPerformance, setAgentPerformance] = useState<AgentPerformance | null>(null);
-  const [logs, setLogs] = useState<AgentLog[]>([]);
-  const [resolutionStats, setResolutionStats] = useState<ResolutionStats | null>(null);
-  const [fullReport, setFullReport] = useState<SentimentFullReport | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const [loadingMetrics, setLoadingMetrics] = useState(true);
-  const [loadingRecs, setLoadingRecs] = useState(true);
-  const [loadingChannels, setLoadingChannels] = useState(true);
-  const [loadingSentimentTrend, setLoadingSentimentTrend] = useState(true);
-  const [loadingAlerts, setLoadingAlerts] = useState(true);
-  const [loadingPerformance, setLoadingPerformance] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
-  const [loadingResolution, setLoadingResolution] = useState(true);
-  const [loadingFullReport, setLoadingFullReport] = useState(true);
+  const analyticsQuery = useQuery({
+    queryKey: ["analytics-ticket", refreshKey],
+    queryFn: () => api.tickets.getAnalytics().then((r) => r.data),
+  });
 
-  const [tab, setTab] = useState<"overview" | "channels" | "sentiment" | "alerts" | "ai">("overview");
-  const [spinning, setSpinning] = useState(false);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const atRiskQuery = useQuery({
+    queryKey: ["analytics-at-risk", refreshKey],
+    queryFn: () => api.tickets.getAtRisk().then((r) => r.data),
+  });
 
-  const fetchAll = useCallback(async () => {
-    setSpinning(true);
+  const agentQuery = useQuery({
+    queryKey: ["analytics-agents", refreshKey],
+    queryFn: () => api.agentAnalytics.getStats().then((r) => r.data),
+  });
 
-    setLoadingMetrics(true);
-    setLoadingRecs(true);
-    setLoadingChannels(true);
-    setLoadingSentimentTrend(true);
-    setLoadingAlerts(true);
-    setLoadingPerformance(true);
-    setLoadingLogs(true);
-    setLoadingResolution(true);
-    setLoadingFullReport(true);
+  const agentStats: AgentAnalyticsStats | undefined = agentQuery.data;
 
-    const safe = async (url: string) => {
-      try {
-        const r = await fetch(url);
-        return r.ok ? r.json() : null;
-      } catch {
-        return null;
-      }
-    };
-
-    const [m, r, c, s, a, p, l, rs, fr] = await Promise.all([
-      safe(`${ANALYTICS_BASE}/analytics-agent/metrics`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/recommendations`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/channel-breakdown`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/sentiment-trend`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/alerts`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/agent-performance`),
-      safe(`${ANALYTICS_BASE}/analytics-agent/logs`),
-      safe(`${SENTIMENT_BASE}/sentiment-agent/resolution-stats`),
-      safe(`${SENTIMENT_BASE}/sentiment-agent/full-report`),
-    ]);
-
-    if (m?.success) setMetrics(m.data);
-    setLoadingMetrics(false);
-
-    if (r?.success) {
-      setRecs({
-        recommendations: r.recommendations || [],
-        alerts: r.alerts || [],
-        metrics: r.metrics || {},
-        performance: r.performance || null,
+  const customersQuery = useQuery<CustomerResponse>({
+    queryKey: ["analytics-customers", refreshKey],
+    queryFn: async () => {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/customers?limit=1000`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-    }
-    setLoadingRecs(false);
+      return res.json();
+    },
+  });
 
-    if (c?.success) setChannels(c.data);
-    setLoadingChannels(false);
+  const analytics: TicketAnalytics | undefined = analyticsQuery.data;
+  const atRisk: AtRiskCustomer[] = atRiskQuery.data ?? [];
+  const customers = customersQuery.data?.data ?? [];
 
-    if (s?.success) setSentimentTrend(s.data);
-    setLoadingSentimentTrend(false);
+  const totalTickets = analytics?.categoryDistribution?.reduce((s, c) => s + c.count, 0) ?? 0;
+  const activeCustomers = customers.filter((c) => c.isActive).length;
+  const avgHealth =
+    customers.length > 0
+      ? Math.round(customers.reduce((s, c) => s + (c.healthScore ?? 100), 0) / customers.length)
+      : 100;
+  const healthyCount = customers.filter((c) => c.healthStatus === "Healthy").length;
+  const watchlistCount = customers.filter((c) => c.healthStatus === "Watchlist").length;
 
-    if (a?.success) setAlertsData(a.data || []);
-    setLoadingAlerts(false);
+  const isLoading = analyticsQuery.isLoading || atRiskQuery.isLoading || customersQuery.isLoading;
 
-    if (p?.success) setAgentPerformance(p.data);
-    setLoadingPerformance(false);
+  const PRIORITY_COLORS: Record<string, string> = {
+    low: C.yellow, medium: C.amber, high: "#f97316", critical: C.textMain,
+  };
+  const SENTIMENT_COLORS: Record<string, string> = {
+    positive: C.yellow, neutral: C.textMain, negative: C.danger,
+  };
 
-    if (l?.success) setLogs((l.data || []).slice(0, 12));
-    setLoadingLogs(false);
+  const categoryData = analytics?.categoryDistribution ?? [];
+  const catMax = Math.max(...categoryData.map((c) => c.count), 1);
+  const catColors = [C.yellow, C.textMain, C.amber, C.muted, C.danger, C.muted];
 
-    if (rs?.success) setResolutionStats(rs.data);
-    setLoadingResolution(false);
+  const sentimentData = (analytics?.sentimentDistribution ?? []).map((s) => ({
+    name: s.sentiment.charAt(0).toUpperCase() + s.sentiment.slice(1),
+    value: s.count,
+    color: SENTIMENT_COLORS[s.sentiment] ?? C.muted,
+  }));
 
-    if (fr?.success) setFullReport(fr);
-    setLoadingFullReport(false);
+  const priorityData = (analytics?.priorityDistribution ?? []).map((p) => ({
+    name: p.priority.charAt(0).toUpperCase() + p.priority.slice(1),
+    value: p.count,
+    color: PRIORITY_COLORS[p.priority] ?? C.muted,
+  }));
 
-    setLastFetched(new Date());
-    setTimeout(() => setSpinning(false), 600);
-  }, []);
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
-  const parsedAiSummary = useMemo(() => cleanExecutiveSummary(fullReport?.aiSummary?.executiveSummary), [fullReport]);
-
-  const channelPie = useMemo(() => {
-    if (!channels) return [];
-    const { email, whatsapp, social } = channels;
-    return [
-      { name: "Email", value: email.total, color: "#60A5FA" },
-      { name: "WhatsApp", value: whatsapp.total, color: "#3ECF6A" },
-      { name: "Twitter", value: social.byPlatform.twitter || 0, color: "#38BDF8" },
-      { name: "Reddit", value: social.byPlatform.reddit || 0, color: "#F97316" },
-      { name: "YouTube", value: social.byPlatform.youtube || 0, color: "#EF4444" },
-      { name: "LinkedIn", value: social.byPlatform.linkedin || 0, color: "#818CF8" },
-    ].filter((d) => d.value > 0);
-  }, [channels]);
-
-  const sentimentChart = useMemo(() => {
-    if (!sentimentTrend) return [];
-    return sentimentTrend.trend.map((d) => ({
-      date: d.date.slice(5),
-      Positive: d.positive,
-      Neutral: d.neutral,
-      Negative: d.negative,
-      Total: d.total,
-    }));
-  }, [sentimentTrend]);
-
-  const channelBar = useMemo(() => {
-    if (!channels) return [];
-    return [
-      { name: "Email", Total: channels.email.total, Replied: channels.email.replied, "AI Replied": channels.email.aiReplied },
-      { name: "WhatsApp", Total: channels.whatsapp.total, Active: channels.whatsapp.active, Unread: channels.whatsapp.unread },
-      { name: "Social", Total: channels.social.total, Complaints: channels.social.complaints, Resolved: channels.social.resolved },
-    ];
-  }, [channels]);
-
-  const gmailStats = useMemo(
-    () => agentPerformance?.agents.find((a) => a.agentType === "gmail") || null,
-    [agentPerformance]
-  );
-
-  const whatsappStats = useMemo(
-    () => agentPerformance?.agents.find((a) => a.agentType === "whatsapp") || null,
-    [agentPerformance]
-  );
-
-  const performanceRadar = useMemo(() => {
-    if (!gmailStats || !whatsappStats) return [];
-    return [
-      { metric: "Success", Gmail: gmailStats.successRate, WhatsApp: whatsappStats.successRate },
-      { metric: "Auto", Gmail: gmailStats.autoReplyCount, WhatsApp: whatsappStats.autoReplyCount },
-      { metric: "Manual", Gmail: gmailStats.manualSendCount, WhatsApp: whatsappStats.manualSendCount },
-      { metric: "Suggest", Gmail: gmailStats.suggestionCount, WhatsApp: whatsappStats.suggestionCount },
-    ];
-  }, [gmailStats, whatsappStats]);
-
-  const tabs: { id: typeof tab; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: "Overview", icon: <BarChart2 size={14} /> },
-    { id: "channels", label: "Channels", icon: <Globe size={14} /> },
-    { id: "sentiment", label: "Sentiment", icon: <Activity size={14} /> },
-    { id: "alerts", label: "Alerts", icon: <AlertTriangle size={14} /> },
-    { id: "ai", label: "AI Insights", icon: <Zap size={14} /> },
+  const healthData = [
+    { name: "Healthy", value: healthyCount, color: C.yellow },
+    { name: "Watchlist", value: watchlistCount, color: C.amber },
+    { name: "At Risk", value: atRisk.length, color: C.danger },
   ];
 
   return (
-    <div style={S.page} className="analytics-root">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        .analytics-root * { box-sizing: border-box; }
-        .analytics-tab { transition: all 0.18s ease; }
-        .analytics-tab:hover { color: #E2E8F0 !important; background: rgba(255,255,255,0.05) !important; }
-        .analytics-tab.active { color: #3ECF6A !important; background: rgba(62,207,106,0.10) !important; border-color: rgba(62,207,106,0.24) !important; }
-        .kpi-card { animation: fadeUp 0.4s ease both; }
-        .rec-card { transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
-        .rec-card:hover { border-color: rgba(62,207,106,0.22) !important; box-shadow: 0 0 0 1px rgba(62,207,106,0.12), 0 18px 48px rgba(0,0,0,0.35) !important; transform: translateY(-2px); }
-        .row-hover:hover { background: rgba(255,255,255,0.025) !important; }
-        @media (max-width: 1280px) { .kpi-grid { grid-template-columns: repeat(3,1fr) !important; } }
-        @media (max-width: 1000px) { .perf-grid { grid-template-columns: 1fr !important; } }
-        @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2,1fr) !important; } .main-row { grid-template-columns: 1fr !important; } .ai-grid { grid-template-columns: 1fr !important; } }
-        @media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr !important; } }
-      `}</style>
+    <div style={{ background: C.cream, minHeight: "100vh", padding: "28px 32px", fontFamily: "DM Sans, Inter, sans-serif", color: C.textMain }}>
 
-      {/* HEADER */}
-      <div style={S.header}>
-        <div>
-          <div style={S.eyebrow}>● ConvoSphere · Complaint Intelligence</div>
-          <h1 style={S.title}>Analytics Dashboard</h1>
-          {lastFetched && (
-            <div style={{ marginTop: "4px", fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", color: "#334155" }}>
-              Last updated {lastFetched.toLocaleTimeString()}
-            </div>
-          )}
-        </div>
-
-        <div style={S.toolbar}>
-          <div
-            style={{
-              display: "flex",
-              gap: "4px",
-              background: "rgba(15,23,42,0.8)",
-              border: "1px solid rgba(148,163,184,0.12)",
-              borderRadius: "12px",
-              padding: "4px",
-            }}
-          >
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                className={`analytics-tab${tab === t.id ? " active" : ""}`}
-                onClick={() => setTab(t.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  padding: "6px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid transparent",
-                  background: "transparent",
-                  color: "#64748B",
-                  cursor: "pointer",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t.icon} {t.label}
-                {t.id === "alerts" && alertsData.length > 0 && (
-                  <span
-                    style={{
-                      background: "#EF4444",
-                      color: "#fff",
-                      fontSize: "9px",
-                      fontWeight: 700,
-                      borderRadius: "99px",
-                      padding: "1px 5px",
-                      marginLeft: "2px",
-                    }}
-                  >
-                    {alertsData.length}
-                  </span>
-                )}
-              </button>
-            ))}
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: C.textMain, display: "flex", alignItems: "center", justifyContent: "center", color: C.yellow }}>
+            <Activity style={{ width: 20, height: 20 }} />
           </div>
-
-          <button style={S.refreshBtn} onClick={fetchAll} title="Refresh all data">
-            <RefreshCw size={14} style={{ transition: "transform 0.6s", transform: spinning ? "rotate(360deg)" : "rotate(0deg)" }} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 500, color: C.textMain }}>Analytics</div>
+            <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>Real-time insights across channels</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: C.yellowBg, border: `0.5px solid ${C.yellowBorder}`, borderRadius: "100px", padding: "5px 12px", fontSize: "11px", fontWeight: 500, color: "#7A4E00" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.yellow, animation: "pulse 2s infinite" }} />
+            Live
+          </div>
+          <button
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={isLoading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: `0.5px solid ${C.border}`, background: "transparent", color: C.textMid, fontSize: 12, cursor: isLoading ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          >
+            <RefreshCw style={{ width: 14, height: 14, animation: isLoading ? "spin 1s linear infinite" : "none" }} />
+            Refresh
           </button>
         </div>
       </div>
 
-      <div style={S.body}>
-        {/* OVERVIEW */}
-        {tab === "overview" && (
-          <>
-            <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "14px" }}>
-              {[
-                {
-                  label: "Total Complaints",
-                  value: loadingMetrics ? "—" : metrics?.summary.totalComplaints?.toLocaleString() ?? "—",
-                  icon: <ShieldAlert size={15} color="#F59E0B" />,
-                  meta: `${metrics?.summary.unresolvedComplaints ?? "—"} unresolved`,
-                  metaColor: "#F59E0B",
-                },
-                {
-                  label: "Critical Complaints",
-                  value: loadingMetrics ? "—" : metrics?.summary.criticalComplaints ?? "—",
-                  icon: <AlertTriangle size={15} color="#EF4444" />,
-                  meta: "Need immediate action",
-                  metaColor: "#EF4444",
-                },
-                {
-                  label: "At-Risk Customers",
-                  value: loadingMetrics ? "—" : metrics?.summary.atRiskCustomers ?? "—",
-                  icon: <Users size={15} color="#F97316" />,
-                  meta: "No reply 48h+",
-                  metaColor: "#F97316",
-                },
-                {
-                  label: "AI Reply Rate",
-                  value: loadingMetrics ? "—" : `${metrics?.rates.aiReplyRate ?? "—"}%`,
-                  icon: <Bot size={15} color="#A78BFA" />,
-                  meta: "Email automation",
-                  metaColor: "#A78BFA",
-                },
-                {
-                  label: "Email Resolution",
-                  value: loadingMetrics ? "—" : `${metrics?.rates.emailResolutionRate ?? "—"}%`,
-                  icon: <Mail size={15} color="#60A5FA" />,
-                  meta: `${metrics?.summary.unrepliedEmails ?? "—"} unreplied`,
-                  metaColor: "#60A5FA",
-                },
-                {
-                  label: "WhatsApp Unread",
-                  value: loadingMetrics ? "—" : metrics?.summary.unreadWhatsApp ?? "—",
-                  icon: <MessageCircle size={15} color="#3ECF6A" />,
-                  meta: `${metrics?.summary.activeChats ?? "—"} active`,
-                  metaColor: "#3ECF6A",
-                },
-              ].map((k, i) => (
-                <div key={i} className="kpi-card">
-                  <Card style={{ ...S.p }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-                      <div style={S.label}>{k.label}</div>
-                      <div
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: "10px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(148,163,184,0.10)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {k.icon}
-                      </div>
-                    </div>
-                    <div style={S.bigNum}>{loadingMetrics ? <Spinner /> : k.value}</div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: "10px",
-                        color: k.metaColor,
-                        fontWeight: 700,
-                        marginTop: "4px",
-                      }}
-                    >
-                      {k.meta}
-                    </div>
-                  </Card>
-                </div>
+      {/* KPI Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
+        <KpiCard icon={<Brain style={{ width: 16, height: 16 }} />} label="Total Tickets" value={isLoading ? "—" : totalTickets} sub="AI analyzed" iconBg={C.yellowBg} iconColor="#B8860B" />
+        <KpiCard icon={<Flame style={{ width: 16, height: 16 }} />} label="Critical" value={isLoading ? "—" : analytics?.criticalTickets ?? 0} sub="Immediate action" iconBg={C.dangerBg} iconColor={C.dangerText} />
+        <KpiCard icon={<AlertTriangle style={{ width: 16, height: 16 }} />} label="Escalated" value={isLoading ? "—" : analytics?.escalatedTickets ?? 0} sub="Needs review" iconBg={C.yellowBg} iconColor="#B8860B" />
+        <KpiCard icon={<Users style={{ width: 16, height: 16 }} />} label="Active Customers" value={isLoading ? "—" : activeCustomers} sub={`${atRisk.length} at risk`} iconBg={C.textMain} iconColor={C.yellow} />
+        <KpiCard
+          icon={<Target style={{ width: 16, height: 16 }} />}
+          label="Avg Health"
+          value={isLoading ? "—" : avgHealth}
+          iconBg={C.greenBg} iconColor={C.green}
+          trend={avgHealth >= 75 ? { label: "Healthy", up: true } : { label: "Needs attention", up: false }}
+        />
+        <KpiCard icon={<CheckCircle style={{ width: 16, height: 16 }} />} label="Resolution Rate" value="—" sub="Coming soon" iconBg="#E1F5EE" iconColor="#0F6E56" />
+      </div>
+
+      {/* Charts */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20 }}>
+        {/* Category bar chart */}
+        <ChartCard title="Ticket categories" icon={<Activity style={{ width: 14, height: 14 }} />}>
+          {isLoading ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+          ) : categoryData.length === 0 ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>No data yet</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {categoryData.map((c, i) => (
+                <HBar
+                  key={c.category}
+                  label={c.category.charAt(0).toUpperCase() + c.category.slice(1)}
+                  value={c.count}
+                  max={catMax}
+                  color={catColors[i % catColors.length]}
+                />
               ))}
             </div>
+          )}
+        </ChartCard>
 
-            <div className="perf-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "14px" }}>
-              <Card style={S.p}>
-                <div style={S.label}>Best Agent by Success Rate</div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Trophy size={18} color="#F59E0B" />
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px", fontWeight: 800, color: "#F8FAFC" }}>
-                    {loadingPerformance ? "—" : formatAgentName(agentPerformance?.winner.bySuccessRate)}
-                  </div>
-                </div>
-              </Card>
+        {/* Sentiment donut */}
+        <ChartCard title="Sentiment breakdown" icon={<Brain style={{ width: 14, height: 14 }} />}>
+          {isLoading ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+          ) : sentimentData.length === 0 ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>No data yet</div>
+          ) : (
+            <DonutChart data={sentimentData} centerLabel={`${Math.round((sentimentData.find(s=>s.name==="Positive")?.value??0)/sentimentData.reduce((a,b)=>a+b.value,0)*100)}%`} centerSub="positive" />
+          )}
+        </ChartCard>
 
-              <Card style={S.p}>
-                <div style={S.label}>Best Agent by Speed</div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Gauge size={18} color="#3ECF6A" />
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px", fontWeight: 800, color: "#F8FAFC" }}>
-                    {loadingPerformance ? "—" : formatAgentName(agentPerformance?.winner.bySpeed)}
-                  </div>
-                </div>
-              </Card>
+        {/* Priority donut */}
+        <ChartCard title="Priority levels" icon={<Flame style={{ width: 14, height: 14 }} />}>
+          {isLoading ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+          ) : priorityData.length === 0 ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>No data yet</div>
+          ) : (
+            <DonutChart data={priorityData} centerLabel={`${Math.round((priorityData.find(p=>p.name==="Low")?.value??0)/priorityData.reduce((a,b)=>a+b.value,0)*100)}%`} centerSub="low" />
+          )}
+        </ChartCard>
 
-              <Card style={S.p}>
-                <div style={S.label}>Overall Health Score</div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <HeartPulse size={18} color="#A78BFA" />
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "30px", fontWeight: 800, color: "#A78BFA" }}>
-                    {loadingFullReport ? "—" : parsedAiSummary.healthScore ?? "—"}
-                  </div>
-                </div>
-              </Card>
-
-              <Card style={S.p}>
-                <div style={S.label}>Resolution Rate</div>
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  <CheckCircle size={18} color="#3ECF6A" />
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "30px", fontWeight: 800, color: "#3ECF6A" }}>
-                    {loadingResolution ? "—" : `${resolutionStats?.resolutionRate ?? 0}%`}
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            <div className="main-row" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "14px" }}>
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Executive AI Summary</h3>
-                <p style={S.sDesc}>Generated from sentiment-agent/full-report</p>
-                {loadingFullReport ? (
-                  <Spinner />
-                ) : (
-                  <div>
-                    <div
-                      style={{
-                        padding: "16px",
-                        borderRadius: "16px",
-                        background: "linear-gradient(135deg, rgba(167,139,250,0.10), rgba(62,207,106,0.06))",
-                        border: "1px solid rgba(167,139,250,0.18)",
-                        fontFamily: "'Space Grotesk', sans-serif",
-                        fontSize: "14px",
-                        lineHeight: 1.75,
-                        color: "#E2E8F0",
-                      }}
-                    >
-                      {parsedAiSummary.executiveSummary}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px", marginTop: "14px" }}>
-                      <div style={{ padding: "12px", borderRadius: "14px", background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.12)" }}>
-                        <div style={{ ...S.label, color: "#EF4444" }}>Top Concern</div>
-                        <div style={{ marginTop: 6, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#FCA5A5" }}>
-                          {parsedAiSummary.topConcern}
-                        </div>
-                      </div>
-
-                      <div style={{ padding: "12px", borderRadius: "14px", background: "rgba(62,207,106,0.05)", border: "1px solid rgba(62,207,106,0.12)" }}>
-                        <div style={{ ...S.label, color: "#3ECF6A" }}>Quick Win</div>
-                        <div style={{ marginTop: 6, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#86EFAC" }}>
-                          {parsedAiSummary.quickWin}
-                        </div>
-                      </div>
-
-                      <div style={{ padding: "12px", borderRadius: "14px", background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.12)" }}>
-                        <div style={{ ...S.label, color: "#60A5FA" }}>Weekly Trend</div>
-                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                          {parsedAiSummary.weeklyTrend === "declining" ? (
-                            <TrendingDown size={14} color="#EF4444" />
-                          ) : (
-                            <TrendingUp size={14} color="#3ECF6A" />
-                          )}
-                          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#BFDBFE", textTransform: "capitalize" }}>
-                            {parsedAiSummary.weeklyTrend}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Card>
-
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Resolution Snapshot</h3>
-                <p style={S.sDesc}>From sentiment-agent/resolution-stats</p>
-                {loadingResolution ? (
-                  <Spinner />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {[
-                      { label: "Total Cases", value: resolutionStats?.total ?? 0, color: "#94A3B8" },
-                      { label: "Resolved", value: resolutionStats?.resolved ?? 0, color: "#3ECF6A" },
-                      { label: "Pending", value: resolutionStats?.pending ?? 0, color: "#F59E0B" },
-                      { label: "Unresolved", value: resolutionStats?.unresolved ?? 0, color: "#EF4444" },
-                      { label: "AI Handled", value: resolutionStats?.aiHandled ?? 0, color: "#A78BFA" },
-                      { label: "AI Rate", value: `${resolutionStats?.aiRate ?? 0}%`, color: "#A78BFA" },
-                    ].map((r, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "12px",
-                          borderRadius: "12px",
-                          background: "rgba(255,255,255,0.025)",
-                          border: "1px solid rgba(148,163,184,0.07)",
-                        }}
-                      >
-                        <div style={S.label}>{r.label}</div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 20, color: r.color }}>
-                          {r.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </div>
-          </>
-        )}
-
-        {/* CHANNELS */}
-        {tab === "channels" && (
-          <>
-            <div className="main-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Channel Distribution</h3>
-                <p style={S.sDesc}>Volume by source channel</p>
-                {loadingChannels ? (
-                  <Spinner />
-                ) : (
-                  <div style={{ height: "280px" }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={channelPie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={3}>
-                          {channelPie.map((e, i) => (
-                            <Cell key={i} fill={e.color} stroke="rgba(0,0,0,0)" />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<Tip />} />
-                        <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px" }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
-
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Channel Stats</h3>
-                <p style={S.sDesc}>Detailed operational breakdown</p>
-                {loadingChannels ? (
-                  <Spinner />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <div style={{ padding: "14px", borderRadius: "14px", border: "1px solid rgba(96,165,250,0.20)", background: "rgba(96,165,250,0.04)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#60A5FA", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "13px" }}>
-                          <Mail size={13} /> Email
-                        </div>
-                        <span style={S.badge("#60A5FA")}>{channels?.email.resolutionRate}% resolved</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "6px" }}>
-                        {[["Total", channels?.email.total], ["Replied", channels?.email.replied], ["AI Replied", channels?.email.aiReplied]].map(([l, v]) => (
-                          <div key={String(l)} style={{ textAlign: "center" }}>
-                            <div style={S.label}>{l}</div>
-                            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 800, color: "#60A5FA" }}>{v}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "14px", borderRadius: "14px", border: "1px solid rgba(62,207,106,0.20)", background: "rgba(62,207,106,0.04)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#3ECF6A", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "13px" }}>
-                          <MessageCircle size={13} /> WhatsApp
-                        </div>
-                        <span style={S.badge("#3ECF6A")}>{channels?.whatsapp.unread} unread</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "6px" }}>
-                        {[["Total", channels?.whatsapp.total], ["Active", channels?.whatsapp.active], ["Unread", channels?.whatsapp.unread]].map(([l, v]) => (
-                          <div key={String(l)} style={{ textAlign: "center" }}>
-                            <div style={S.label}>{l}</div>
-                            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 800, color: "#3ECF6A" }}>{v}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "14px", borderRadius: "14px", border: "1px solid rgba(249,115,22,0.20)", background: "rgba(249,115,22,0.04)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "#F97316", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "13px" }}>
-                          <Globe size={13} /> Social
-                        </div>
-                        <span style={S.badge("#EF4444")}>{channels?.social.critical} critical</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "6px" }}>
-                        {Object.entries(channels?.social.byPlatform ?? {}).map(([platform, count]) => (
-                          <div key={platform} style={{ textAlign: "center" }}>
-                            <div style={S.label}>{platform}</div>
-                            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 800, color: "#F97316" }}>
-                              {count as number}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </div>
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>Channel Volume Comparison</h3>
-              <p style={S.sDesc}>Total vs replied vs AI-handled across channels</p>
-              {loadingChannels ? (
-                <Spinner />
-              ) : (
-                <div style={{ height: "260px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={channelBar} margin={{ top: 4, right: 8, bottom: 0, left: -16 }} barSize={24} barCategoryGap="36%">
-                      <CartesianGrid {...grid} />
-                      <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
-                      <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
-                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(255,255,255,0.02)" }} />
-                      <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", paddingTop: "12px" }} />
-                      <Bar dataKey="Total" fill="#334155" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Replied" fill="#60A5FA" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="AI Replied" fill="#3ECF6A" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Active" fill="#22C55E" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Unread" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Complaints" fill="#F97316" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Resolved" fill="#34D399" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>Agent vs Agent Comparison</h3>
-              <p style={S.sDesc}>Analytics log comparison between Gmail and WhatsApp agents</p>
-              {loadingPerformance ? (
-                <Spinner />
-              ) : (
-                <div style={{ height: "320px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={performanceRadar}>
-                      <PolarGrid stroke="rgba(148,163,184,0.15)" />
-                      <PolarAngleAxis dataKey="metric" tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }} />
-                      <PolarRadiusAxis tick={{ fill: "#475569", fontSize: 10 }} />
-                      <Radar name="Gmail" dataKey="Gmail" stroke="#60A5FA" fill="#60A5FA" fillOpacity={0.18} />
-                      <Radar name="WhatsApp" dataKey="WhatsApp" stroke="#3ECF6A" fill="#3ECF6A" fillOpacity={0.18} />
-                      <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }} />
-                      <Tooltip content={<Tip />} />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/* SENTIMENT */}
-        {tab === "sentiment" && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px" }}>
-              {loadingFullReport ? (
-                <Card style={{ ...S.p, gridColumn: "1/-1" }}><Spinner /></Card>
-              ) : (
-                [
-                  { label: "Positive", value: fullReport?.overview.sentimentBreakdown.positive ?? 0, color: "#3ECF6A" },
-                  { label: "Neutral", value: fullReport?.overview.sentimentBreakdown.neutral ?? 0, color: "#94A3B8" },
-                  { label: "Negative", value: fullReport?.overview.sentimentBreakdown.negative ?? 0, color: "#EF4444" },
-                  { label: "Angry", value: fullReport?.overview.sentimentBreakdown.angry ?? 0, color: "#F97316" },
-                ].map((s, i) => (
-                  <Card key={i} style={{ ...S.p }}>
-                    <div style={S.label}>{s.label} Sentiment</div>
-                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "38px", fontWeight: 800, color: s.color, marginTop: "8px" }}>
-                      {s.value}
-                    </div>
-                  </Card>
-                ))
-              )}
-            </div>
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>7-Day Sentiment Trend</h3>
-              <p style={S.sDesc}>Trend from analytics-agent sentiment endpoint</p>
-              {loadingSentimentTrend ? (
-                <Spinner />
-              ) : (
-                <div style={{ height: "300px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={sentimentChart} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-                      <defs>
-                        <linearGradient id="gPos" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3ECF6A" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#3ECF6A" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="gNeu" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#94A3B8" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#94A3B8" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="gNeg" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid {...grid} />
-                      <XAxis dataKey="date" tick={axisStyle} axisLine={false} tickLine={false} />
-                      <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
-                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(255,255,255,0.02)" }} />
-                      <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", paddingTop: "10px" }} />
-                      <Area type="monotone" dataKey="Positive" stroke="#3ECF6A" strokeWidth={2.5} fill="url(#gPos)" />
-                      <Area type="monotone" dataKey="Neutral" stroke="#94A3B8" strokeWidth={2} fill="url(#gNeu)" strokeDasharray="4 4" />
-                      <Area type="monotone" dataKey="Negative" stroke="#EF4444" strokeWidth={2.5} fill="url(#gNeg)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Card>
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>Customer Sentiment & Resolution</h3>
-              <p style={S.sDesc}>Per-customer report from sentiment-agent/full-report</p>
-              {loadingFullReport ? (
-                <Spinner />
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-                    <thead>
-                      <tr>
-                        {["Customer", "Sentiment", "Score", "Resolution", "Unreplied Emails", "Unread WA", "At Risk"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", padding: "10px 14px", borderBottom: "1px solid rgba(148,163,184,0.10)", ...S.label }}>
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(fullReport?.customers || []).map((c, i) => {
-                        const sentimentColor =
-                          c.sentiment === "positive"
-                            ? "#3ECF6A"
-                            : c.sentiment === "neutral"
-                            ? "#94A3B8"
-                            : c.sentiment === "negative"
-                            ? "#EF4444"
-                            : "#F97316";
-
-                        const resolutionColor =
-                          c.resolutionStatus === "resolved"
-                            ? "#3ECF6A"
-                            : c.resolutionStatus === "pending"
-                            ? "#F59E0B"
-                            : "#EF4444";
-
-                        return (
-                          <tr key={c.customerId || i} className="row-hover" style={{ transition: "background 0.15s" }}>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'Space Grotesk', sans-serif", fontSize: "13px", color: "#F8FAFC", fontWeight: 700 }}>
-                              {c.name}
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                              <span style={S.badge(sentimentColor)}>{c.sentiment}</span>
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "12px", color: sentimentColor, fontWeight: 700 }}>
-                              {c.sentimentScore}
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                              <span style={S.badge(resolutionColor)}>{c.resolutionStatus}</span>
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "12px", color: "#60A5FA" }}>
-                              {c.unrepliedEmails}
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "12px", color: "#3ECF6A" }}>
-                              {c.unreadWhatsApp}
-                            </td>
-                            <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                              {c.isAtRisk ? <span style={S.badge("#EF4444")}>YES</span> : <span style={S.badge("#3ECF6A")}>NO</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/* ALERTS */}
-        {tab === "alerts" && (
-          <>
-            {loadingAlerts ? (
-              <Card style={S.p}><Spinner /></Card>
-            ) : alertsData.length === 0 ? (
-              <Card style={{ ...S.p, textAlign: "center" }}>
-                <CheckCircle size={40} color="#3ECF6A" style={{ marginBottom: "12px" }} />
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 700, color: "#F8FAFC", marginBottom: "6px" }}>
-                  All clear!
-                </div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "13px", color: "#64748B" }}>
-                  No active alerts at this time.
-                </div>
-              </Card>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {alertsData.map((a, i) => {
-                  const severityColor: Record<string, string> = { critical: "#EF4444", high: "#F59E0B", medium: "#60A5FA" };
-                  const sc = severityColor[a.severity] || "#94A3B8";
-                  const typeIcon: Record<string, React.ReactNode> = {
-                    email: <Mail size={16} />,
-                    whatsapp: <MessageCircle size={16} />,
-                    social: <Globe size={16} />,
-                    customer: <Users size={16} />,
-                  };
-
-                  return (
-                    <Card key={i} style={{ border: `1px solid ${sc}25`, background: `linear-gradient(160deg, ${sc}05, rgba(2,6,23,0.95))` }}>
-                      <div
-                        className="row-hover"
-                        style={{
-                          ...S.p,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "16px",
-                          borderRadius: "20px",
-                          transition: "background 0.15s",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => (window.location.href = a.link)}
-                      >
-                        <div
-                          style={{
-                            width: 42,
-                            height: 42,
-                            borderRadius: "12px",
-                            background: `${sc}18`,
-                            border: `1px solid ${sc}30`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: sc,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {typeIcon[a.type] || <AlertTriangle size={16} />}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                            <AlertBadge severity={a.severity} />
-                            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "14px", color: "#F8FAFC" }}>
-                              {a.title}
-                            </span>
-                          </div>
-                          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "12px", color: "#64748B" }}>{a.action}</div>
-                        </div>
-                        <ChevronRight size={16} color="#475569" style={{ flexShrink: 0 }} />
-                      </div>
-                    </Card>
-                  );
-                })}
+        {/* Health bars + mini-stats */}
+        <ChartCard title="Customer health" icon={<HeartPulse style={{ width: 14, height: 14 }} />}>
+          {isLoading ? (
+            <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                <HBar label="Healthy" value={healthyCount} max={Math.max(customers.length, 1)} color={C.yellow} />
+                <HBar label="Watchlist" value={watchlistCount} max={Math.max(customers.length, 1)} color={C.amber} />
+                <HBar label="At Risk" value={atRisk.length} max={Math.max(customers.length, 1)} color={C.danger} />
               </div>
-            )}
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>AI Alert Context</h3>
-              <p style={S.sDesc}>Signals surfaced by the analytics recommendations engine</p>
-              {loadingRecs ? (
-                <Spinner />
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "12px" }}>
-                  {(recs?.alerts || []).map((a, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        padding: "14px",
-                        borderRadius: "14px",
-                        background: "rgba(239,68,68,0.05)",
-                        border: "1px solid rgba(239,68,68,0.14)",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <AlertTriangle size={14} color="#EF4444" />
-                        <span style={{ ...S.label, color: "#EF4444" }}>Active Signal</span>
-                      </div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#FCA5A5", fontWeight: 600 }}>{a}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/* AI INSIGHTS */}
-        {tab === "ai" && (
-          <>
-            {!loadingRecs && recs?.metrics && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
+              <div style={{ display: "flex", gap: 10 }}>
                 {[
-                  { label: "Unreplied Emails", value: recs.metrics.unrepliedEmails, color: "#60A5FA" },
-                  { label: "Unread WhatsApp", value: recs.metrics.unreadWhatsApp, color: "#3ECF6A" },
-                  { label: "At-Risk Customers", value: recs.metrics.atRiskCustomers, color: "#F97316" },
-                  { label: "Critical Complaints", value: recs.metrics.criticalComplaints, color: "#EF4444" },
-                ].map((m, i) => (
-                  <Card key={i} style={{ ...S.p, textAlign: "center" }}>
-                    <div style={S.label}>{m.label}</div>
-                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "30px", fontWeight: 800, color: m.color, marginTop: "6px" }}>
-                      {m.value}
-                    </div>
-                  </Card>
+                  { label: "Total", val: customers.length, bg: "#F7F2E8", valColor: C.textMain, labelColor: C.textFaint },
+                  { label: "Healthy", val: `${customers.length > 0 ? Math.round(healthyCount/customers.length*100) : 0}%`, bg: C.yellowBg, valColor: "#7A4E00", labelColor: "#B8860B" },
+                  { label: "At risk", val: `${customers.length > 0 ? Math.round(atRisk.length/customers.length*100) : 0}%`, bg: C.dangerBg, valColor: C.dangerText, labelColor: C.dangerText },
+                ].map((s) => (
+                  <div key={s.label} style={{ flex: 1, background: s.bg, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 500, color: s.valColor }}>{s.val}</div>
+                    <div style={{ fontSize: 10, color: s.labelColor, textTransform: "uppercase", letterSpacing: ".06em", marginTop: 2 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* At-Risk */}
+      {atRisk.length > 0 && (
+        <div style={{ background: C.white, border: `0.5px solid ${C.dangerBorder}`, borderRadius: 12, padding: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.dangerText, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <AlertTriangle style={{ width: 15, height: 15 }} />
+            At-risk customers ({atRisk.length})
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+            {atRisk.slice(0, 6).map((c) => (
+              <div key={c._id} style={{ background: C.dangerBg, border: `0.5px solid ${C.dangerBorder}`, borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: C.textMain, marginBottom: 2 }}>{c.name}</div>
+                {c.email && <div style={{ fontSize: 11, color: C.textMid, marginBottom: 10 }}>{c.email}</div>}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${c.healthScore}%`, background: c.healthScore < 30 ? C.danger : C.amber, borderRadius: 2 }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.dangerText, width: 24, textAlign: "right" }}>{c.healthScore}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Agent Performance */}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: C.textMain, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <Brain style={{ width: 15, height: 15, color: C.yellow }} />
+          AI Agent Performance
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 18 }}>
+          <KpiCard icon={<Activity style={{ width: 16, height: 16 }} />} label="Total AI Replies" value={agentQuery.isLoading ? "—" : agentStats?.totalReplies ?? 0} sub="All agents" iconBg={C.yellowBg} iconColor="#B8860B" />
+          <KpiCard icon={<CheckCircle style={{ width: 16, height: 16 }} />} label="Success Rate" value={agentQuery.isLoading ? "—" : `${agentStats?.successRate ?? 0}%`} sub={`${agentStats?.failedCount ?? 0} failed`} iconBg="#E1F5EE" iconColor="#0F6E56" />
+          <KpiCard icon={<Target style={{ width: 16, height: 16 }} />} label="Avg Response" value={agentQuery.isLoading ? "—" : `${((agentStats?.avgTotalMs ?? 0) / 1000).toFixed(1)}s`} sub="End-to-end latency" iconBg={C.yellowBg} iconColor="#B8860B" />
+          <KpiCard icon={<Brain style={{ width: 16, height: 16 }} />} label="AI Generation" value={agentQuery.isLoading ? "—" : `${((agentStats?.avgGenerationMs ?? 0) / 1000).toFixed(1)}s`} sub="LLM inference time" iconBg={C.textMain} iconColor={C.yellow} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <ChartCard title="Replies by agent" icon={<Activity style={{ width: 14, height: 14 }} />}>
+            {agentQuery.isLoading ? (
+              <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+            ) : !agentStats?.byAgent?.length ? (
+              <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>No agent activity yet. Send some AI replies first.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {agentStats.byAgent.map((a) => (
+                  <HBar key={a._id} label={a._id.charAt(0).toUpperCase() + a._id.slice(1)} value={a.count} max={Math.max(...agentStats.byAgent.map(x => x.count), 1)} color={a._id === 'whatsapp' ? C.yellow : a._id === 'gmail' ? C.amber : C.textMain} />
                 ))}
               </div>
             )}
+          </ChartCard>
 
-            <div className="ai-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Best Performing Agent</h3>
-                <p style={S.sDesc}>Computed using saved MongoDB analytics events</p>
-                {loadingPerformance ? (
-                  <Spinner />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div style={{ padding: "16px", borderRadius: "16px", background: "linear-gradient(135deg, rgba(62,207,106,0.10), rgba(96,165,250,0.08))", border: "1px solid rgba(62,207,106,0.14)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <Trophy size={16} color="#F59E0B" />
-                        <span style={{ ...S.label, color: "#F59E0B" }}>Winner by Success Rate</span>
-                      </div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 800, color: "#F8FAFC" }}>
-                        {formatAgentName(agentPerformance?.winner.bySuccessRate)}
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "16px", borderRadius: "16px", background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.14)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <Gauge size={16} color="#60A5FA" />
-                        <span style={{ ...S.label, color: "#60A5FA" }}>Winner by Speed</span>
-                      </div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 800, color: "#F8FAFC" }}>
-                        {formatAgentName(agentPerformance?.winner.bySpeed)}
-                      </div>
-                    </div>
+          <ChartCard title="Recent agent activity" icon={<Activity style={{ width: 14, height: 14 }} />}>
+            {agentQuery.isLoading ? (
+              <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>Loading…</div>
+            ) : !agentStats?.recentActions?.length ? (
+              <div style={{ textAlign: "center", color: C.textFaint, padding: "40px 0" }}>No activity yet</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto" }}>
+                {agentStats.recentActions.slice(0, 10).map((a, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, padding: "6px 0", borderBottom: `0.5px solid ${C.border}` }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: a.status === 'success' ? C.yellow : C.danger, flexShrink: 0 }} />
+                    <span style={{ color: C.textMain, fontWeight: 500 }}>{a.agentType}</span>
+                    <span style={{ color: C.textFaint, flex: 1 }}>{a.actionType.replace(/_/g, ' ')}</span>
+                    <span style={{ color: C.textMid, fontSize: 11 }}>{a.totalLatencyMs ? `${(a.totalLatencyMs / 1000).toFixed(1)}s` : ''}</span>
                   </div>
-                )}
-              </Card>
-
-              <Card style={S.p}>
-                <h3 style={S.sTitle}>Operational AI Analysis</h3>
-                <p style={S.sDesc}>Combined reading of sentiment and agent performance</p>
-                {loadingPerformance || loadingFullReport ? (
-                  <Spinner />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <div style={{ padding: "14px", borderRadius: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.10)" }}>
-                      <div style={{ ...S.label, color: "#60A5FA" }}>Gmail Agent</div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#CBD5E1", lineHeight: 1.6, marginTop: 6 }}>
-                        Success rate <b style={{ color: "#60A5FA" }}>{gmailStats?.successRate ?? 0}%</b>, total events{" "}
-                        <b style={{ color: "#60A5FA" }}>{gmailStats?.totalEvents ?? 0}</b>, average total latency{" "}
-                        <b style={{ color: "#60A5FA" }}>{formatMs(gmailStats?.avgTotalLatencyMs)}</b>.
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "14px", borderRadius: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(148,163,184,0.10)" }}>
-                      <div style={{ ...S.label, color: "#3ECF6A" }}>WhatsApp Agent</div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#CBD5E1", lineHeight: 1.6, marginTop: 6 }}>
-                        Success rate <b style={{ color: "#3ECF6A" }}>{whatsappStats?.successRate ?? 0}%</b>, total events{" "}
-                        <b style={{ color: "#3ECF6A" }}>{whatsappStats?.totalEvents ?? 0}</b>, average total latency{" "}
-                        <b style={{ color: "#3ECF6A" }}>{formatMs(whatsappStats?.avgTotalLatencyMs)}</b>.
-                      </div>
-                    </div>
-
-                    <div style={{ padding: "14px", borderRadius: "14px", background: "rgba(167,139,250,0.07)", border: "1px solid rgba(167,139,250,0.14)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <Sparkles size={14} color="#A78BFA" />
-                        <span style={{ ...S.label, color: "#A78BFA" }}>Insight</span>
-                      </div>
-                      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#DDD6FE", lineHeight: 1.7 }}>
-                        {agentPerformance?.winner.bySuccessRate === "whatsapp" && (gmailStats?.totalEvents ?? 0) === 0
-                          ? "WhatsApp Agent currently dominates performance because it is the only channel with recorded auto-reply activity. Gmail Agent needs live usage data before a fair comparison can be made."
-                          : agentPerformance?.winner.bySuccessRate === agentPerformance?.winner.bySpeed
-                          ? `${formatAgentName(agentPerformance?.winner.bySuccessRate)} currently leads on both reliability and speed, making it the strongest automated support channel right now.`
-                          : `${formatAgentName(agentPerformance?.winner.bySuccessRate)} leads on success rate, while ${formatAgentName(agentPerformance?.winner.bySpeed)} is faster. This suggests a trade-off between reliability and turnaround speed.`}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </div>
-
-            {!loadingRecs && recs?.alerts && recs.alerts.length > 0 && (
-              <Card style={{ ...S.p, border: "1px solid rgba(239,68,68,0.22)", background: "rgba(239,68,68,0.04)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
-                  <AlertTriangle size={16} color="#EF4444" />
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "14px", color: "#EF4444" }}>
-                    Active Alerts
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {recs.alerts.map((a, i) => (
-                    <span key={i} style={S.badge("#EF4444")}>{a}</span>
-                  ))}
-                </div>
-              </Card>
+                ))}
+              </div>
             )}
-
-            <div>
-              <h3 style={{ ...S.sTitle, marginBottom: "14px" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Zap size={16} color="#A78BFA" /> AI-Powered Recommendations
-                </span>
-              </h3>
-              {loadingRecs ? (
-                <Card style={S.p}>
-                  <Spinner />
-                  <div style={{ textAlign: "center", marginTop: "8px", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: "#475569" }}>
-                    Groq AI is analyzing your metrics…
-                  </div>
-                </Card>
-              ) : (
-                <div className="ai-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "12px" }}>
-                  {(recs?.recommendations ?? []).map((r, i) => {
-                    const priorityColor: Record<string, string> = { high: "#EF4444", medium: "#F59E0B", low: "#3ECF6A" };
-                    const categoryIcon: Record<string, React.ReactNode> = {
-                      response_time: <Clock size={14} />,
-                      ai_automation: <Bot size={14} />,
-                      customer_risk: <Users size={14} />,
-                      social_media: <Globe size={14} />,
-                      staffing: <User size={14} />,
-                      agent_performance: <Target size={14} />,
-                    };
-                    const pc = priorityColor[r.priority] || "#94A3B8";
-
-                    return (
-                      <div
-                        key={i}
-                        className="rec-card"
-                        style={{
-                          ...S.card,
-                          ...S.p,
-                          border: `1px solid rgba(148,163,184,0.12)`,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <span style={S.badge(pc)}>
-                              <PriorityDot priority={r.priority} />
-                              {r.priority.toUpperCase()}
-                            </span>
-                            <span style={{ ...S.label, textTransform: "none", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}>
-                              {categoryIcon[r.category] || <Target size={12} />} {r.category.replace("_", " ")}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "15px", color: "#F8FAFC", marginBottom: "6px", lineHeight: 1.3 }}>
-                          {r.title}
-                        </div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "12px", color: "#64748B", marginBottom: "12px", lineHeight: 1.6 }}>
-                          {r.description}
-                        </div>
-                        <div style={{ padding: "10px 12px", borderRadius: "10px", background: "rgba(62,207,106,0.06)", border: "1px solid rgba(62,207,106,0.14)", marginBottom: "8px" }}>
-                          <div style={{ ...S.label, color: "#3ECF6A", marginBottom: "3px" }}>Action</div>
-                          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "12px", color: "#86EFAC", fontWeight: 600 }}>
-                            {r.action}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <ArrowUpRight size={12} color="#A78BFA" />
-                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", color: "#A78BFA" }}>{r.impact}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <Card style={S.p}>
-              <h3 style={S.sTitle}>Recent Agent Logs</h3>
-              <p style={S.sDesc}>Latest raw events saved by Gmail and WhatsApp agents</p>
-              {loadingLogs ? (
-                <Spinner />
-              ) : (
-                <div style={{ maxHeight: 320, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-                    <thead>
-                      <tr>
-                        {["Time", "Agent", "Action", "Status", "Latency", "Channel"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", padding: "10px 14px", borderBottom: "1px solid rgba(148,163,184,0.10)", ...S.label }}>
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logs.map((row, i) => (
-                        <tr key={row._id || i} className="row-hover" style={{ transition: "background 0.15s" }}>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: "#94A3B8" }}>
-                            {new Date(row.createdAt).toLocaleTimeString()}
-                          </td>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: row.agentType === "gmail" ? "#60A5FA" : "#3ECF6A", fontWeight: 700 }}>
-                            {row.agentType}
-                          </td>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: "#E2E8F0" }}>
-                            {row.actionType}
-                          </td>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: row.status === "success" ? "#3ECF6A" : row.status === "failed" ? "#EF4444" : "#F59E0B", fontWeight: 700 }}>
-                            {row.status}
-                          </td>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: "#A78BFA" }}>
-                            {formatMs(row.totalLatencyMs)}
-                          </td>
-                          <td style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)", fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", color: "#64748B" }}>
-                            {row.channel}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          </>
-        )}
+          </ChartCard>
+        </div>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+      `}</style>
     </div>
   );
 }
