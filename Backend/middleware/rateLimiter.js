@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 // ──────────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
+  max: 5000,
   standardHeaders: true,  // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false,   // Disable `X-RateLimit-*` headers
   message: {
